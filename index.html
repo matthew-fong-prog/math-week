@@ -3,38 +3,1251 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gauss Castle Defender</title>
+    <title>Gauss Defender: The Pattern</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #0B1120;
-            color: white;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            user-select: none;
-        }
-        @keyframes attention-pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
-            50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
-        }
-        .heart { color: #f43f5e; font-size: 1.5rem; line-height: 1; }
-        .heart.lost { color: #334155; }
-        .attention { animation: attention-pulse 1.5s infinite; background-color: #0ea5e9; border-color: #38bdf8; color: white;}
-        
+        body { margin: 0; overflow: hidden; background-color: #0B1120; color: white; font-family: monospace; user-select: none; -webkit-user-select: none; }
+        .heart { color: #f43f5e; } .heart.lost { color: #334155; }
         .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        #game-canvas { touch-action: none; transition: filter 1.5s ease-in-out; }
+        @keyframes pulse-mine { 0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,0.7); } 50% { box-shadow: 0 0 15px rgba(225,29,72,0.8); } }
+        .animate-mine { animation: pulse-mine 1.5s infinite; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-6px); } }
+        .animate-shake { animation: shake 0.3s ease-in-out; }
+        @keyframes glow-pi { 0%, 100% { text-shadow: 0 0 10px #34d399, 0 0 20px #34d399; } 50% { text-shadow: 0 0 20px #34d399, 0 0 40px #34d399; } }
+        .animate-glow-pi { animation: glow-pi 2s infinite; }
         
         #pi-phase { transition: backdrop-filter 0.5s ease, background-color 0.5s ease; }
         .phase-reveal { backdrop-filter: blur(2px) !important; background-color: rgba(2,6,23,0.2) !important; }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen">
+
+    <!-- Main Menu Overlay -->
+    <div id="main-menu" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center pointer-events-auto transition-opacity duration-500">
+        <h1 class="text-5xl md:text-7xl font-bold text-cyan-400 mb-4 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)] text-center tracking-widest">GAUSS DEFENDER</h1>
+        <p class="text-slate-300 text-lg md:text-xl mb-12 max-w-2xl text-center px-6">Defend the origin by calculating and building the exact lattice points of R² circles.</p>
         
-        @keyframes glow-pi { 0%, 100% { text-shadow: 0 0 10px #34d399, 0 0 20px #34d399; } 50% { text-shadow: 0 0 20px #34d399, 0 0 40px #34d399; } }
-        .animate-glow-pi { animation: glow-pi 2s infinite; }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-6px); } }
-        .animate-shake { animation: shake 0.3s ease-in-out; }
+        <div class="flex flex-col md:flex-row gap-6 px-4">
+            <button id="btn-easy" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-8 rounded-2xl shadow-[0_0_20px_rgba(52,211,153,0.4)] transition-all transform hover:scale-105 cursor-pointer flex flex-col items-center justify-center border-2 border-emerald-400 min-w-[200px]">
+                <span class="text-2xl tracking-widest mb-1">EASY</span>
+                <span class="text-xs font-normal opacity-90">Target rings are highlighted</span>
+            </button>
+            
+            <button id="btn-hard" class="bg-rose-600 hover:bg-rose-500 text-white font-bold py-4 px-8 rounded-2xl shadow-[0_0_20px_rgba(244,63,94,0.4)] transition-all transform hover:scale-105 cursor-pointer flex flex-col items-center justify-center border-2 border-rose-400 min-w-[200px]">
+                <span class="text-2xl tracking-widest mb-1">HARD</span>
+                <span class="text-xs font-normal opacity-90">No ring hints</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="flex-1 relative overflow-hidden" id="canvas-container">
+        
+        <!-- Top UI -->
+        <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none z-10" id="top-ui">
+            <div class="bg-slate-800/90 border border-slate-700 rounded-xl p-3 shadow-lg backdrop-blur-sm pointer-events-auto min-w-[120px]">
+                <div class="text-center border-b border-slate-700 pb-1 mb-1">
+                    <div id="health-bar" class="flex justify-center gap-1 text-xl"></div>
+                </div>
+                <div class="text-center">
+                    <p id="score-val" class="text-xl font-bold text-emerald-400">0</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center pointer-events-auto">
+                <div class="bg-emerald-900/80 border-2 border-emerald-500 rounded-full px-6 py-1 shadow-lg transition-colors flex flex-col justify-center items-center" id="phase-banner">
+                    <p id="phase-title" class="text-emerald-300 font-bold uppercase text-xs text-center tracking-widest pointer-events-none">Build</p>
+                    <p id="phase-timer" class="text-white text-2xl font-bold text-center pointer-events-none">60.0s</p>
+                </div>
+                <button id="skip-btn" class="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-widest py-1.5 px-4 rounded-full shadow-lg transition-colors cursor-pointer">
+                    Skip Build
+                </button>
+            </div>
+            
+            <div class="min-w-[120px]"></div>
+        </div>
+
+        <div class="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-none z-50">
+            <p id="feedback-text" class="text-2xl font-bold drop-shadow-[0_0_8px_#000] opacity-0 transition-opacity duration-300 whitespace-nowrap"></p>
+        </div>
+
+        <div id="hover-info" class="absolute bg-slate-900/90 border border-slate-600 rounded px-2 py-1 pointer-events-none opacity-0 z-20 shadow-lg -translate-x-1/2 -translate-y-[150%]">
+            <p id="hover-coords" class="text-xs font-bold text-cyan-400"></p>
+        </div>
+
+        <!-- The Pattern Phase Panel (Side/Bottom) -->
+        <div id="pi-phase" class="absolute bottom-0 right-0 w-full h-[60vh] md:h-full md:top-0 md:bottom-auto md:w-[600px] lg:w-[700px] bg-slate-950/95 backdrop-blur-xl z-50 hidden flex-col items-center justify-start pointer-events-auto p-4 md:p-6 overflow-y-auto border-t md:border-t-0 md:border-l border-slate-700 shadow-2xl custom-scrollbar transition-transform duration-700 translate-y-full md:translate-y-0 md:translate-x-full">
+            <h1 class="text-3xl font-bold text-cyan-400 mb-2 tracking-widest text-center mt-2">THE PATTERN OF R²</h1>
+            <p class="text-slate-400 mb-4 text-center text-sm px-4">
+                Evaluate the character <span class="text-emerald-400 italic font-serif">&chi;(d)</span> for all <span class="text-yellow-200 italic">Divisors</span> of R².<br>Assign +1, 0, or -1 to each box to find the sum.
+            </p>
+
+            <!-- Dynamic Grid Area -->
+            <div class="bg-slate-900/80 border border-slate-700 rounded-xl p-3 md:p-5 mb-6 shadow-xl w-full flex flex-col relative transition-opacity duration-300" id="matrix-panel">
+                <div id="pi-grid-container" class="w-full overflow-y-auto custom-scrollbar pb-2 flex flex-col max-h-[45vh] px-2 gap-2">
+                    <!-- Divisor Rows injected here -->
+                </div>
+            </div>
+
+            <!-- Block Area -->
+            <div id="pi-interactive-area" class="w-full flex flex-col items-center">
+                <div id="pi-blocks" class="flex flex-wrap gap-2 justify-center items-center min-h-[40px]">
+                    <p class="text-sm text-cyan-200 animate-pulse">Evaluate <span class="font-serif">&chi;(d)</span> for each divisor and find the sum.</p>
+                </div>
+            </div>
+
+            <!-- Mathematical Calculation Readout -->
+            <div id="pi-message" class="text-center mt-2 hidden flex-col items-center pb-8 w-full overflow-y-auto custom-scrollbar flex-1">
+                <p class="text-2xl font-bold text-emerald-400 animate-glow-pi mb-4 shrink-0">PATTERN SOLVED</p>
+                <div id="pi-calculation" class="bg-slate-950 border border-slate-700 rounded-xl p-4 w-full text-left font-mono text-xs md:text-sm text-slate-300 mb-6 space-y-2 shadow-inner leading-relaxed shrink-0">
+                    <!-- JS will animate the math here -->
+                </div>
+                <div class="flex gap-4 justify-center mt-2 shrink-0 pb-4">
+                    <button id="rebuild-btn" class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-full shadow-[0_0_15px_rgba(8,145,178,0.5)] transition-transform hover:scale-105 active:scale-95 hidden">Play Again</button>
+                    <button id="pi-main-menu-btn" class="main-menu-btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-full shadow-[0_0_15px_rgba(71,85,105,0.5)] border border-slate-500 transition-transform hover:scale-105 active:scale-95 hidden">Main Menu</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-over" class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-50 hidden flex-col items-center justify-center pointer-events-auto">
+            <h1 class="text-5xl font-bold text-rose-500 mb-2">DEFENSES BREACHED</h1>
+            <button class="play-again-btn mt-6 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_15px_rgba(8,145,178,0.5)]">Play Again</button>
+        </div>
+
+        <canvas id="game-canvas" class="block w-full h-full cursor-crosshair"></canvas>
+    </div>
+
+    <!-- Bottom Panel -->
+    <div class="bg-slate-900/95 backdrop-blur-md border-t border-slate-700 z-20 h-24 shrink-0 pointer-events-auto flex items-center px-4 overflow-x-auto custom-scrollbar transition-opacity duration-1000" id="shield-flex">
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const cont = document.getElementById('canvas-container');
+        const feedbackText = document.getElementById('feedback-text');
+        const phaseBanner = document.getElementById('phase-banner');
+        const phaseTimerEl = document.getElementById('phase-timer');
+        const phaseTitleEl = document.getElementById('phase-title');
+        const skipBtn = document.getElementById('skip-btn');
+        
+        const piPhaseContainer = document.getElementById('pi-phase');
+        const piGridContainer = document.getElementById('pi-grid-container');
+        const piBlocksContainer = document.getElementById('pi-blocks');
+        const piInteractiveArea = document.getElementById('pi-interactive-area');
+        const piMessage = document.getElementById('pi-message');
+        const topUI = document.getElementById('top-ui');
+        const bottomUI = document.getElementById('shield-flex');
+        
+        const WAVES = [[1,2,3,4], [5,6,7,8], [9,10,11,12], [13,14,15,16], [17,18,19,20]];
+        
+        const btnStyles = {
+            green: { on: 'bg-emerald-600 border border-emerald-400 text-white rounded-lg py-2 px-4 font-bold text-center min-w-[90px] cursor-pointer hover:bg-emerald-500', off: 'bg-slate-900 border border-emerald-800/50 text-emerald-700 rounded-lg py-2 px-4 font-bold text-center min-w-[90px] cursor-pointer hover:border-emerald-600'},
+            blue: { on: 'bg-blue-600 border border-blue-400 text-white rounded-lg py-2 px-4 font-bold text-center min-w-[90px] cursor-pointer hover:bg-blue-500', off: 'bg-slate-900 border border-blue-800/50 text-blue-700 rounded-lg py-2 px-4 font-bold text-center min-w-[90px] cursor-pointer hover:border-blue-600'},
+            red: { on: 'bg-rose-600 border border-rose-400 text-white rounded-lg py-2 px-4 font-bold text-center min-w-[90px] cursor-pointer hover:bg-rose-500', off: 'bg-slate-900 border border-rose-800/50 text-rose-700 rounded-lg py-2 px-4 font-bold text-center min-w-[90px] cursor-pointer hover:border-rose-600'}
+        };
+
+        // Fully declared globals
+        let isHardMode = false;
+        let health, score, gameOver, lastTime, reqId;
+        let waveIdx, phase, phaseTime, waveTimer;
+        let completedCircles, targetQueue, activePool, currentRSq, targetPts, foundPts, buttonsMap;
+        let monsters, particles, flashes, bullets;
+        let scale = 15, tScale = 15, cx = 0, cy = 0, tCx = 0, tCy = 0;
+        let drag = false, hasDragged = false, dStartX = 0, dStartY = 0, lastX = 0, lastY = 0, hPt = null;
+        let screenMouseX = 0, screenMouseY = 0;
+        
+        // PI Phase specific rendering globals
+        let piMaxR = 0;
+        let highlightedRings = [];
+        let flashChiColor = '255,255,255';
+        let flashAlpha = 0;
+        let hoveredRSq = 0; 
+        window.userAnswers = {};
+        let piEliminations = []; // Holds the cancellation animations
+        let piFloatingTexts = []; // Holds the dynamic text popups
+
+        const ptKey = (x,y) => `${Math.abs(Math.round(x))===0?0:Math.round(x)},${Math.abs(Math.round(y))===0?0:Math.round(y)}`; 
+        const isPo2 = n => n !== 0 && (n & (n - 1)) === 0;
+
+        function getCircleType(rSq) {
+            if (rSq <= 1) return 'green';
+            if (isPo2(rSq)) return 'blue';
+            let t = rSq, hits = true;
+            for (let i = 2; i*i <= t; i++) {
+                if (t % i === 0) {
+                    let c = 0; while (t % i === 0) { c++; t /= i; }
+                    if (i % 4 === 3 && c % 2 !== 0) hits = false;
+                }
+            }
+            if (t > 1 && t % 4 === 3) hits = false;
+            return hits ? 'green' : 'red';
+        }
+
+        function getPts(rSq) {
+            let pts = [], limit = Math.floor(Math.sqrt(rSq));
+            for (let x = -limit; x <= limit; x++) {
+                let y = Math.round(Math.sqrt(rSq - x*x));
+                if (y*y === rSq - x*x) {
+                    pts.push({x: Math.round(x), y: Math.round(y)});
+                    if (y !== 0) pts.push({x: Math.round(x), y: Math.round(-y)});
+                }
+            }
+            return pts;
+        }
+
+        function getDisplayPts(rSq) {
+            let pts = getPts(rSq);
+            if (pts.length === 0) {
+                let r = Math.sqrt(rSq);
+                pts = [
+                    {x: r * Math.cos(Math.PI/4), y: r * Math.sin(Math.PI/4)},
+                    {x: r * Math.cos(3*Math.PI/4), y: r * Math.sin(3*Math.PI/4)},
+                    {x: r * Math.cos(5*Math.PI/4), y: r * Math.sin(5*Math.PI/4)},
+                    {x: r * Math.cos(7*Math.PI/4), y: r * Math.sin(7*Math.PI/4)}
+                ];
+            }
+            return pts;
+        }
+
+        function getDivisors(n) {
+            let divs = [];
+            for (let i = 1; i <= n; i++) {
+                if (n % i === 0) divs.push(i);
+            }
+            return divs;
+        }
+
+        function getComputedSum(n) {
+            let factors = getDivisors(n);
+            let ans = window.userAnswers[n];
+            if (!ans) return undefined;
+            
+            let sum = 0;
+            for (let i = 0; i < factors.length; i++) {
+                if (ans[i] === undefined) return undefined;
+                sum += ans[i];
+            }
+            return sum;
+        }
+
+        function showFeedback(txt, err=false) {
+            feedbackText.textContent = txt;
+            feedbackText.className = `text-2xl font-bold drop-shadow-[0_0_10px_#000] text-center transition-opacity duration-300 opacity-100 ${err?'text-rose-400':'text-yellow-400'} whitespace-nowrap`;
+            setTimeout(() => feedbackText.classList.replace('opacity-100', 'opacity-0'), 1500);
+        }
+
+        function resizeCanvas() {
+            if (!canvas || !cont) return;
+            canvas.width = cont.clientWidth || window.innerWidth;
+            canvas.height = cont.clientHeight || window.innerHeight;
+            adjustCameraForPhase();
+        }
+
+        function adjustCameraForPhase() {
+            if (phase === 'PI') {
+                let isDesktop = window.innerWidth >= 768;
+                let panelWidth = isDesktop ? (window.innerWidth >= 1024 ? 600 : 500) : window.innerWidth;
+                let leftW = isDesktop ? window.innerWidth - panelWidth : window.innerWidth;
+                let topH = isDesktop ? canvas.height : canvas.height * 0.4;
+                
+                tCx = leftW / 2; 
+                tCy = topH / 2;
+                tScale = Math.max(5, Math.min(leftW, topH) / 2 / (Math.sqrt(piMaxR) + 2));
+            } else {
+                tCx = canvas.width / 2; 
+                tCy = canvas.height / 2;
+                tScale = Math.max(5, Math.min(canvas.width, canvas.height) / 2 / 10);
+            }
+            clamp();
+        }
+
+        function updateUI() {
+            document.getElementById('health-bar').innerHTML = Array(5).fill().map((_,i)=>`<span class="heart ${i>=health?'lost':''} text-2xl">♥</span>`).join('');
+            document.getElementById('score-val').textContent = score;
+            
+            if(health <= 0 && phase !== 'PI') { 
+                gameOver = true; 
+                phase = 'PI';
+                phaseTitleEl.textContent = "SYSTEM FAILURE";
+                phaseTimerEl.textContent = "0.0s";
+                phaseBanner.className = "bg-rose-900/80 border-2 border-rose-500 rounded-full px-8 py-1 shadow-[0_0_20px_rgba(225,29,72,0.6)] flex flex-col justify-center items-center";
+                skipBtn.style.display = 'none';
+                
+                canvas.style.filter = "none"; 
+                topUI.style.transition = "opacity 1s"; 
+                topUI.style.opacity = "0";
+                bottomUI.style.opacity = "0";
+                
+                setTimeout(startPatternPhase, 1500);
+            }
+        }
+
+        function createBtn(rSq) {
+            if (buttonsMap.has(rSq)) return;
+            let b = document.createElement('div');
+            b.className = 'bg-slate-800/50 border border-slate-700/50 text-slate-500 rounded-lg py-2 px-4 font-bold text-center opacity-60 min-w-[90px] mx-2';
+            b.innerHTML = `R²=${rSq}<br><span class="text-[10px]">WAITING</span>`;
+            document.getElementById('shield-flex').appendChild(b);
+            buttonsMap.set(rSq, b);
+        }
+
+        function setTarget() {
+            if (!targetQueue.length) { currentRSq = null; targetPts = []; return; }
+            currentRSq = targetQueue[0];
+            targetPts = getPts(currentRSq);
+            foundPts.clear();
+            
+            let reqScale = Math.min(canvas.width, canvas.height) / 2 / (Math.sqrt(currentRSq) + 2);
+            if (tScale > reqScale) tScale = Math.max(5, reqScale);
+
+            let b = buttonsMap.get(currentRSq);
+            if (b) {
+                b.className = targetPts.length ? 'bg-slate-800 border-2 border-cyan-400 text-cyan-300 rounded-lg py-2 px-4 font-bold text-center min-w-[90px]' 
+                            : 'bg-rose-900 border-2 border-rose-500 text-rose-300 rounded-lg py-2 px-4 font-bold text-center cursor-pointer min-w-[90px] animate-mine';
+                b.innerHTML = `R²=${currentRSq}<br><span class="text-[10px]">${targetPts.length ? `0/${targetPts.length} PTS` : 'DEPLOY'}</span>`;
+                if (!targetPts.length) b.onclick = () => { if(!gameOver && currentRSq === targetQueue[0]) finishTarget(); };
+                else b.onclick = null;
+                b.scrollIntoView({behavior: 'smooth', inline:'center'});
+            }
+        }
+
+        function toggleShield(rSq) {
+            let c = completedCircles.get(rSq);
+            if (!c) return;
+
+            if (!c.active) {
+                completedCircles.forEach((otherC, otherRSq) => {
+                    if (otherRSq !== rSq && otherC.active) {
+                        otherC.active = false;
+                        let otherB = buttonsMap.get(otherRSq);
+                        if (otherB) {
+                            otherB.className = btnStyles[otherC.type].off;
+                            otherB.innerHTML = `R²=${otherRSq}<br><span class="text-[10px]">OFF</span>`;
+                        }
+                    }
+                });
+                c.active = true;
+            } else {
+                c.active = false;
+            }
+
+            let b = buttonsMap.get(rSq);
+            if (b) {
+                b.className = btnStyles[c.type][c.active ? 'on' : 'off'];
+                b.innerHTML = `R²=${rSq}<br><span class="text-[10px]">${c.active ? 'ON' : 'OFF'}</span>`;
+            }
+        }
+
+        function finishTarget() {
+            let rSq = currentRSq; 
+            let type = getCircleType(rSq);
+            
+            let finalPts = [...targetPts];
+            if (type === 'red') {
+                let r = Math.sqrt(rSq);
+                finalPts = [
+                    {x: r * Math.cos(Math.PI/4), y: r * Math.sin(Math.PI/4)},
+                    {x: r * Math.cos(3*Math.PI/4), y: r * Math.sin(3*Math.PI/4)},
+                    {x: r * Math.cos(5*Math.PI/4), y: r * Math.sin(5*Math.PI/4)},
+                    {x: r * Math.cos(7*Math.PI/4), y: r * Math.sin(7*Math.PI/4)}
+                ];
+            }
+
+            completedCircles.set(rSq, {r: Math.sqrt(rSq), type: type, pts: finalPts, aR: 0, active: false, shootTimer: 0});
+            
+            let b = buttonsMap.get(rSq);
+            b.onclick = () => toggleShield(rSq);
+            
+            toggleShield(rSq);
+            
+            let healText = "";
+            if (health < 5) {
+                health++;
+                updateUI();
+                healText = " (+1 ♥)";
+            }
+            
+            showFeedback(type==='red'?`R²=${rSq} Defense Deployed!${healText}`:`R²=${rSq} Defense Built!${healText}`);
+            targetQueue.shift();
+            setTimeout(setTarget, 200);
+        }
+
+        function switchPhase() {
+            if (phase === 'BUILD') {
+                phase = 'DEFEND'; phaseTime = 30.0;
+                phaseBanner.className = "bg-rose-900/80 border-2 border-rose-500 rounded-full px-8 py-1 shadow-[0_0_20px_rgba(225,29,72,0.6)] flex flex-col justify-center items-center";
+                phaseTitleEl.textContent = `Defend (Wave ${waveIdx+1})`;
+                phaseTitleEl.className = "text-rose-300 font-bold uppercase text-xs text-center pointer-events-none";
+                skipBtn.style.display = 'none';
+            } else {
+                phase = 'BUILD'; phaseTime = 60.0; waveIdx++;
+                bullets = []; 
+                
+                let next = [];
+                if (waveIdx < WAVES.length) {
+                    next = [...WAVES[waveIdx]];
+                } else {
+                    next = [1, 2, 3, 4].map(x => x + waveIdx * 4);
+                }
+                
+                next.forEach(r => { activePool.push(r); targetQueue.push(r); createBtn(r); });
+                if (!currentRSq) setTarget();
+                
+                phaseBanner.className = "bg-emerald-900/80 border-2 border-emerald-500 rounded-full px-8 py-1 shadow-[0_0_20px_rgba(52,211,153,0.5)] flex flex-col justify-center items-center";
+                phaseTitleEl.textContent = `Build (Wave ${waveIdx+1})`;
+                phaseTitleEl.className = "text-emerald-300 font-bold uppercase text-xs text-center pointer-events-none";
+                skipBtn.style.display = 'block';
+            }
+        }
+
+        // ---------- PATTERN PHASE & MATH LOGIC ----------
+        function startPatternPhase() {
+            topUI.style.display = "none";
+            bottomUI.style.display = "none";
+            hoveredRSq = 0;
+            window.userAnswers = {};
+            
+            void cont.offsetHeight;
+            
+            let maxR = completedCircles.size > 0 ? Math.max(...Array.from(completedCircles.keys())) : 0;
+            piMaxR = Math.max(maxR, 4); 
+            
+            resizeCanvas();
+
+            monsters = []; bullets = []; particles = []; flashes = [];
+            
+            piPhaseContainer.classList.remove('hidden');
+            piPhaseContainer.classList.add('flex');
+            setTimeout(() => {
+                piPhaseContainer.classList.remove('translate-y-full', 'md:translate-x-full', 'md:translate-y-0');
+            }, 50);
+            
+            piMessage.classList.add('hidden');
+            piMessage.classList.remove('flex');
+            piInteractiveArea.classList.remove('hidden');
+            piInteractiveArea.classList.add('flex');
+
+            let listHTML = `<div class="flex flex-col gap-2 w-full pb-4">`;
+            
+            for (let n = 1; n <= piMaxR; n++) {
+                let factors = getDivisors(n);
+                
+                window.userAnswers[n] = new Array(factors.length).fill(undefined);
+                
+                listHTML += `
+                <div id="pi-row-${n}" class="flex flex-col md:flex-row justify-between md:items-center bg-slate-800/80 p-3 rounded-lg border border-slate-700 transition-colors gap-2">
+                    <div class="w-24 font-bold text-cyan-300 text-lg shrink-0">R² = ${n}</div>
+                    
+                    <div class="flex-1 flex flex-wrap items-center justify-start md:justify-center gap-2 md:border-l border-slate-600/50 md:pl-3">
+                        ${factors.map((f, idx) => `
+                            <div class="flex items-center gap-2">
+                                ${idx > 0 ? '<span class="text-slate-500 font-bold">+</span>' : ''}
+                                <div class="flex flex-col items-center">
+                                    <span class="text-[10px] text-emerald-400/70 uppercase tracking-widest mb-1">&chi;(${f})</span>
+                                    <button id="chi-btn-${n}-${idx}" class="w-12 h-10 bg-slate-900 border-2 border-dashed border-slate-500 rounded font-bold text-lg transition-all hover:border-cyan-400 focus:outline-none flex items-center justify-center text-slate-500 shadow-inner cursor-pointer">
+                                        ?
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        
+                        <div class="flex items-center gap-2 ml-2 md:ml-4 border-l border-slate-600/50 pl-2 md:pl-4">
+                            <span class="text-slate-500 font-bold">=</span>
+                            <div class="flex flex-col items-center">
+                                <span class="text-[10px] text-yellow-200/70 uppercase tracking-widest mb-1">&sum;&chi;(d)</span>
+                                <div id="chi-result-${n}" class="w-12 h-10 bg-slate-950 border border-slate-700 rounded font-bold text-lg flex items-center justify-center text-slate-600 shadow-inner">
+                                    ?
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            listHTML += `</div>`;
+            
+            piGridContainer.innerHTML = listHTML;
+            piBlocksContainer.innerHTML = '<p class="text-sm text-cyan-200 mt-2 animate-pulse">Evaluate <span class="font-serif">&chi;(d)</span> for each divisor and find the sum.</p>';
+            
+            for (let n = 1; n <= piMaxR; n++) {
+                let factors = getDivisors(n);
+
+                let row = document.getElementById(`pi-row-${n}`);
+                if (row) {
+                    row.addEventListener('pointerenter', () => { hoveredRSq = n; });
+                    row.addEventListener('pointerleave', () => { hoveredRSq = 0; });
+                }
+                
+                for (let idx = 0; idx < factors.length; idx++) {
+                    let btn = document.getElementById(`chi-btn-${n}-${idx}`);
+                    if (btn) {
+                        btn.onclick = () => {
+                            let prevRowSum = getComputedSum(n);
+                            
+                            let current = window.userAnswers[n][idx];
+                            if (current === undefined) current = 1;
+                            else if (current === 1) current = 0;
+                            else if (current === 0) current = -1;
+                            else if (current === -1) current = 1; 
+                            
+                            window.userAnswers[n][idx] = current;
+                            
+                            let sign = current === 0 ? '0' : (current > 0 ? '+1' : '−1');
+                            let colorClass = current > 0 ? 'text-emerald-400' : (current < 0 ? 'text-rose-400' : 'text-slate-400');
+                            let borderClass = current > 0 ? 'border-emerald-500' : (current < 0 ? 'border-rose-500' : 'border-slate-500');
+                            
+                            btn.innerHTML = sign;
+                            btn.className = `w-12 h-10 bg-slate-900 border-2 rounded font-bold text-lg transition-all focus:outline-none flex items-center justify-center shadow-inner cursor-pointer ${colorClass} ${borderClass}`;
+                            
+                            let newRowSum = getComputedSum(n);
+                            let resBox = document.getElementById(`chi-result-${n}`);
+                            
+                            if (newRowSum !== undefined) {
+                                let resSign = newRowSum === 0 ? '0' : (newRowSum > 0 ? '+' + newRowSum : newRowSum.toString());
+                                let resColor = newRowSum > 0 ? 'text-emerald-400' : (newRowSum < 0 ? 'text-rose-400' : 'text-slate-400');
+                                resBox.innerHTML = resSign;
+                                resBox.className = `w-12 h-10 bg-slate-900 border border-slate-600 rounded font-bold text-lg flex items-center justify-center shadow-inner ${resColor}`;
+                            } else {
+                                resBox.innerHTML = '?';
+                                resBox.className = `w-12 h-10 bg-slate-950 border border-slate-700 rounded font-bold text-lg flex items-center justify-center text-slate-600 shadow-inner`;
+                            }
+
+                            if (newRowSum !== undefined && prevRowSum === undefined) {
+                                let msg = newRowSum === 0 ? "Points Eliminated" : "Points Established";
+                                let msgColor = newRowSum === 0 ? "244, 63, 94" : "52, 211, 153";
+                                piFloatingTexts.push({ text: msg, yOffset: 0, life: 90, color: msgColor });
+
+                                if (newRowSum === 0) {
+                                    let pts = getDisplayPts(n);
+                                    pts.forEach(p => {
+                                        piEliminations.push({x: p.x, y: p.y, timer: 1.0});
+                                    });
+                                }
+                                flashCanvasPattern(n, newRowSum > 0 ? 1 : (newRowSum === 0 ? -1 : 0), piMaxR);
+                            }
+                            
+                            checkWinCondition();
+                        };
+                    }
+                }
+            }
+        }
+        
+        function checkWinCondition() {
+            let win = true;
+            for (let n = 1; n <= piMaxR; n++) {
+                let factors = getDivisors(n);
+                for (let idx = 0; idx < factors.length; idx++) {
+                    let f = factors[idx];
+                    let trueChi = (f % 2 === 0) ? 0 : (f % 4 === 1 ? 1 : -1);
+                    if (window.userAnswers[n][idx] !== trueChi) {
+                        win = false;
+                        break;
+                    }
+                }
+                if (!win) break;
+            }
+
+            if (win) {
+                // Disable all buttons
+                for (let n = 1; n <= piMaxR; n++) {
+                    let factors = getDivisors(n);
+                    for (let idx = 0; idx < factors.length; idx++) {
+                        let btn = document.getElementById(`chi-btn-${n}-${idx}`);
+                        if(btn) {
+                            btn.disabled = true;
+                            btn.classList.remove('cursor-pointer', 'hover:border-cyan-400');
+                        }
+                    }
+                }
+                
+                setTimeout(() => {
+                    let mp = document.getElementById('matrix-panel');
+                    if (mp) mp.classList.add('opacity-40');
+                    if (piMessage) {
+                        piMessage.classList.remove('hidden');
+                        piMessage.classList.add('flex');
+                        piMessage.scrollIntoView({ behavior: "smooth", block: "end" });
+                    }
+                    runPiCalculation(piMaxR); 
+                }, 500); 
+            }
+        }
+
+        function flashCanvasPattern(d, chi, maxN) {
+            piPhaseContainer.classList.add('phase-reveal');
+            setTimeout(() => {
+                piPhaseContainer.classList.remove('phase-reveal');
+            }, 1200);
+
+            highlightedRings = [d];
+            flashChiColor = chi === 0 ? '148, 163, 184' : (chi > 0 ? '52, 211, 153' : '244, 63, 94');
+            flashAlpha = 1.0;
+        }
+
+        // The Grand Mathematical Finale Text
+        function runPiCalculation(N) {
+            let calcDiv = document.getElementById('pi-calculation');
+            calcDiv.innerHTML = '';
+            
+            let sum = 0;
+            for (let d = 1; d <= N; d++) {
+                let chi = (d % 2 === 0) ? 0 : (d % 4 === 1 ? 1 : -1);
+                let count = Math.floor(N / d);
+                sum += chi * count;
+            }
+            let points = 1 + 4 * sum;
+            let piApprox = (points / N).toFixed(4);
+
+            function f(sign, bot) {
+                return `<div class="inline-flex items-center align-middle mx-1 text-cyan-300">
+                    <span class="mr-1">${sign}</span>
+                    <div class="flex flex-col items-center text-[0.65rem] md:text-xs leading-none">
+                        <span class="border-b border-current w-full text-center pb-[1px]">1</span>
+                        <span class="pt-[1px]">${bot}</span>
+                    </div>
+                </div>`;
+            }
+
+            let steps = [
+                `> You correctly evaluated &sum;&chi;(d) for all rings!`,
+                `> &chi;(p) = 1 if p&equiv;1 (mod 4), &minus;1 if p&equiv;3 (mod 4), and 0 if p=2.`,
+                `> Points on ring n: <span class="text-emerald-400">r₂(n) = 4 &times; &sum;&chi;(d)</span> for all divisors d|n`,
+                `> Total points in circle: <span class="text-emerald-400">N(R&sup2;) = 1 + &sum; r₂(n)</span>`,
+                `> By switching the order of summation:`,
+                `> <span class="text-yellow-200">N(R&sup2;) = 1 + 4 &times; &sum; &chi;(d)&lfloor;R&sup2;/d&rfloor;</span>`,
+                `> Area of Circle = &pi;R&sup2; &approx; N(R&sup2;)  &rArr;  &pi; &approx; N(R&sup2;) / R&sup2;`,
+                `> &pi; = 4 &times; [ 1/1 &minus; 1/3 + 1/5 &minus; 1/7 + 1/9 &minus; ... ]`,
+                `<div class="flex items-center flex-wrap mt-3 font-bold text-lg md:text-xl text-cyan-300">
+                    <span>&pi; = 4 &times; ( 1</span>
+                    ${f('&minus;', '3')}
+                    ${f('+', '5')}
+                    ${f('&minus;', '7')}
+                    ${f('+', '9')}
+                    <span class="ml-2">... )</span>
+                </div>`,
+                `<div class="mt-2 text-yellow-300 font-bold text-lg md:text-xl">> Your R&sup2;=${N} Approximation: ${piApprox}</div>`
+            ];
+
+            let rebuildBtn = document.getElementById('rebuild-btn');
+            if (rebuildBtn) rebuildBtn.classList.add('hidden');
+            let piMainMenuBtn = document.getElementById('pi-main-menu-btn');
+            if (piMainMenuBtn) piMainMenuBtn.classList.add('hidden');
+
+            steps.forEach((step, idx) => {
+                setTimeout(() => {
+                    let p = document.createElement('div');
+                    p.innerHTML = step;
+                    p.className = "opacity-0 transition-opacity duration-500 mb-2";
+                    calcDiv.appendChild(p);
+                    void p.offsetWidth; // reflow
+                    p.classList.remove('opacity-0');
+                    calcDiv.scrollTop = calcDiv.scrollHeight;
+
+                    if (idx === steps.length - 1) {
+                        setTimeout(() => {
+                            if (rebuildBtn) {
+                                rebuildBtn.classList.remove('hidden');
+                                rebuildBtn.classList.add('animate-bounce');
+                                setTimeout(() => rebuildBtn.classList.remove('animate-bounce'), 1000);
+                            }
+                            if (piMainMenuBtn) {
+                                piMainMenuBtn.classList.remove('hidden');
+                            }
+                            calcDiv.scrollTop = calcDiv.scrollHeight;
+                        }, 1000);
+                    }
+                }, 1200 * idx); 
+            });
+        }
+
+        function explode(px, py, c) { 
+            for(let i=0;i<15;i++) particles.push({x:px, y:py, vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8, l:1, c:c}); 
+        }
+
+        function clamp() {
+            tCx = Math.max(cont.clientWidth/2 - 100*scale, Math.min(cont.clientWidth/2 + 100*scale, tCx));
+            tCy = Math.max(cont.clientHeight/2 - 100*scale, Math.min(cont.clientHeight/2 + 100*scale, tCy));
+        }
+
+        function getHover(mx, my) {
+            let snapDist = Math.max(scale * 0.8, 20);
+            
+            if (currentRSq && targetPts.length) {
+                let bPt = null, bDist = Infinity;
+                targetPts.forEach(p => {
+                    if (foundPts.has(ptKey(p.x,p.y))) return;
+                    let d = Math.hypot(mx - (cx+p.x*scale), my - (cy-p.y*scale));
+                    if (d < bDist) { bDist = d; bPt = p; }
+                });
+                if (bPt && bDist < snapDist) return bPt; 
+            }
+            let gx = Math.round((mx-cx)/scale), gy = Math.round((cy-my)/scale);
+            if (Math.abs(gx)<=100 && Math.abs(gy)<=100 && Math.hypot(mx - (cx+gx*scale), my - (cy-gy*scale)) < Math.max(scale * 0.6, 15)) return {x:gx, y:gy};
+            return null;
+        }
+
+        function handleClick() {
+            if (!hPt || !currentRSq) return;
+            if (!targetPts.length) return showFeedback(`R²=${currentRSq} is a MINE! Use the UI button!`, true);
+            
+            let r2 = hPt.x*hPt.x + hPt.y*hPt.y, key = ptKey(hPt.x, hPt.y);
+            
+            if (r2 === currentRSq && !foundPts.has(key)) {
+                foundPts.add(key);
+                buttonsMap.get(currentRSq).innerHTML = `R²=${currentRSq}<br><span class="text-[10px]">${foundPts.size}/${targetPts.length} PTS</span>`;
+                flashes.push({x: cx+hPt.x*scale, y: cy-hPt.y*scale, a: 1, c: '250,204,21'});
+                if (foundPts.size === targetPts.length) finishTarget();
+            } else if (!foundPts.has(key) && !completedCircles.has(r2)) {
+                showFeedback(r2 > currentRSq && targetQueue.includes(r2) ? `Build R²=${currentRSq} first!` : "Wrong Point!", true);
+                flashes.push({x: cx+hPt.x*scale, y: cy-hPt.y*scale, a: 1, c: '244,63,94'});
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        
+        canvas.addEventListener('wheel', e => {
+            if (phase === 'PI') return;
+            e.preventDefault();
+            tScale = Math.max(5, Math.min(150, tScale * (e.deltaY>0 ? 0.9 : 1.1)));
+            let mxg = (screenMouseX - cx)/scale, myg = (screenMouseY - cy)/scale;
+            tCx = screenMouseX - mxg*tScale; tCy = screenMouseY - myg*tScale; clamp();
+        }, {passive:false});
+
+        canvas.addEventListener('pointerdown', e => {
+            if (gameOver) return;
+            drag = true; hasDragged = false; dStartX=lastX=e.clientX; dStartY=lastY=e.clientY;
+        });
+        
+        window.addEventListener('pointermove', e => {
+            if (gameOver) return;
+            let rect = canvas.getBoundingClientRect();
+            screenMouseX = e.clientX - rect.left; screenMouseY = e.clientY - rect.top;
+
+            if (drag) {
+                if (Math.hypot(e.clientX-dStartX, e.clientY-dStartY) > 10) {
+                    hasDragged = true; cx += e.clientX-lastX; cy += e.clientY-lastY; tCx=cx; tCy=cy; clamp(); cx=tCx; cy=tCy; hPt=null;
+                }
+                lastX = e.clientX; lastY = e.clientY;
+            } else {
+                hPt = getHover(screenMouseX, screenMouseY);
+                let hi = document.getElementById('hover-info');
+                if (hPt) { hi.style.opacity=1; hi.style.left=screenMouseX+'px'; hi.style.top=screenMouseY+'px'; document.getElementById('hover-coords').innerHTML=`(${hPt.x}, ${hPt.y})<br>R²=${hPt.x*hPt.x+hPt.y*hPt.y}`;} 
+                else hi.style.opacity=0;
+            }
+        });
+        
+        window.addEventListener('pointerup', e => {
+            if (drag) { 
+                drag = false; 
+                if (!hasDragged && !gameOver) {
+                    let rect = canvas.getBoundingClientRect();
+                    hPt = getHover(e.clientX - rect.left, e.clientY - rect.top);
+                    handleClick(); 
+                } 
+            }
+        });
+
+        function showMainMenu() {
+            if (reqId) cancelAnimationFrame(reqId);
+            
+            let menu = document.getElementById('main-menu');
+            if (menu) menu.style.display = 'flex';
+            document.getElementById('game-over').style.display = 'none';
+            
+            if (topUI) { topUI.style.opacity = "0"; topUI.style.display = "none"; }
+            if (bottomUI) { bottomUI.style.opacity = "0"; bottomUI.style.display = "none"; }
+            
+            if (piPhaseContainer) {
+                piPhaseContainer.classList.add('translate-y-full', 'md:translate-x-full', 'md:translate-y-0');
+                setTimeout(() => {
+                    piPhaseContainer.classList.add('hidden');
+                    piPhaseContainer.classList.remove('flex');
+                }, 700);
+            }
+            
+            resizeCanvas();
+            cx = canvas.width / 2;
+            cy = canvas.height / 2;
+            scale = 20;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawCastle();
+        }
+
+        function initGame() {
+            let menu = document.getElementById('main-menu');
+            if (menu) menu.style.display = 'none';
+            
+            if(reqId) cancelAnimationFrame(reqId);
+            
+            canvas.style.filter = "none";
+            topUI.style.transition = "none"; 
+            topUI.style.opacity = "1";
+            topUI.style.display = ""; 
+            bottomUI.style.opacity = "1";
+            bottomUI.style.display = ""; 
+            
+            piPhaseContainer.classList.add('translate-y-full', 'md:translate-x-full', 'md:translate-y-0');
+            setTimeout(() => {
+                piPhaseContainer.classList.add('hidden');
+                piPhaseContainer.classList.remove('flex');
+            }, 700);
+            
+            piMessage.classList.add('hidden');
+            piMessage.classList.remove('flex');
+
+            let mp = document.getElementById('matrix-panel');
+            if (mp) mp.classList.remove('opacity-40');
+
+            let calcDiv = document.getElementById('pi-calculation');
+            if (calcDiv) calcDiv.innerHTML = '';
+            
+            let rebuildBtn = document.getElementById('rebuild-btn');
+            if (rebuildBtn) rebuildBtn.classList.add('hidden');
+            
+            health = 5; score = 0; gameOver = false; waveIdx = -1; phase = 'NONE';
+            completedCircles = new Map(); targetQueue = []; activePool = []; buttonsMap = new Map();
+            foundPts = new Set(); targetPts = []; monsters = []; particles = []; flashes = []; bullets = []; waveTimer = 0;
+            currentRSq = null; hPt = null; piMaxR = 0; highlightedRings = []; flashAlpha = 0; hoveredRSq = 0; window.userAnswers = {};
+            piEliminations = []; piFloatingTexts = []; 
+            
+            document.getElementById('shield-flex').innerHTML = '';
+            document.getElementById('game-over').style.display = 'none';
+            updateUI();
+            
+            lastTime = Date.now(); 
+            switchPhase();
+            resizeCanvas(); 
+            cx = tCx; cy = tCy; scale = tScale;
+            reqId = requestAnimationFrame(loop);
+        }
+
+        function loop() {
+            let now = Date.now();
+            let dt = now - lastTime;
+            lastTime = now;
+            
+            if (dt > 100 || dt < 0) dt = 16; 
+            
+            if (!gameOver) {
+                phaseTime -= dt / 1000;
+                if (phaseTime <= 0) switchPhase();
+                phaseTimerEl.textContent = Math.max(0, phaseTime).toFixed(1) + "s";
+                
+                if (phase === 'DEFEND' && ++waveTimer > Math.max(20, 100 - waveIdx*15)) {
+                    waveTimer = 0;
+                    let r = activePool[Math.floor(Math.random()*activePool.length)];
+                    let MathHypotSpace = Math.max(canvas.width, canvas.height);
+                    let spawnDist = (MathHypotSpace / 2) / scale + 2;
+                    
+                    monsters.push({
+                        rSq: r, 
+                        a: Math.random()*6.28, 
+                        dist: spawnDist, 
+                        speed: 0.04 + waveIdx*0.005, 
+                        w: Math.random()*6.28, 
+                        t: getCircleType(r)
+                    });
+                }
+
+                if (phase === 'DEFEND') {
+                    completedCircles.forEach((c, rSq) => {
+                        if (c.active) {
+                            c.shootTimer = (c.shootTimer || 0) + dt;
+                            if (c.shootTimer > 2000) { 
+                                c.shootTimer = 0;
+                                c.pts.forEach(p => {
+                                    let px = cx + p.x*scale, py = cy - p.y*scale;
+                                    let closest = null, minDist = Infinity;
+                                    monsters.forEach(m => {
+                                        if (m.rSq === rSq) {
+                                            let mx = cx + Math.cos(m.a)*m.dist*scale, my = cy - Math.sin(m.a)*m.dist*scale;
+                                            let d = Math.hypot(mx - px, my - py);
+                                            if (d < minDist) { minDist = d; closest = m; }
+                                        }
+                                    });
+                                    if (closest) {
+                                        bullets.push({x: px, y: py, target: closest, type: c.type, speed: 12});
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+
+            scale += (tScale - scale)*0.2; cx += (tCx - cx)*0.2; cy += (tCy - cy)*0.2;
+            
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            
+            // Grid Lines
+            ctx.lineWidth = 1; ctx.strokeStyle = '#1e293b'; ctx.beginPath();
+            let sX = Math.max(-100, Math.floor(-cx/scale)), eX = Math.min(100, Math.ceil((canvas.width-cx)/scale));
+            let sY = Math.max(-100, Math.floor((cy-canvas.height)/scale)), eY = Math.min(100, Math.ceil(cy/scale));
+            for(let i=sX; i<=eX; i++) { ctx.moveTo(cx+i*scale, cy-100*scale); ctx.lineTo(cx+i*scale, cy+100*scale); }
+            for(let i=sY; i<=eY; i++) { ctx.moveTo(cx-100*scale, cy-i*scale); ctx.lineTo(cx+100*scale, cy-i*scale); }
+            ctx.stroke();
+            
+            // Boundary & Axes
+            ctx.strokeStyle = '#334155'; ctx.lineWidth = 3; ctx.strokeRect(cx-100*scale, cy-100*scale, 200*scale, 200*scale);
+            ctx.lineWidth = 2; ctx.strokeStyle = '#475569'; ctx.beginPath();
+            ctx.moveTo(cx-100*scale,cy); ctx.lineTo(cx+100*scale,cy); ctx.moveTo(cx,cy-100*scale); ctx.lineTo(cx,cy+100*scale); ctx.stroke();
+
+            // Axis Labels
+            ctx.fillStyle = '#64748b'; ctx.font = '10px monospace';
+            let step = scale < 8 ? 20 : (scale < 15 ? 10 : (scale < 30 ? 5 : (scale < 50 ? 2 : 1)));
+            ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+            for(let i=sX; i<=eX; i++) {
+                if (i !== 0 && i % step === 0) ctx.fillText(i, cx + i*scale, cy + 5);
+            }
+            ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+            for(let i=sY; i<=eY; i++) {
+                if (i !== 0 && i % step === 0) ctx.fillText(i, cx - 5, cy - i*scale);
+            }
+
+            // Castle
+            ctx.save(); ctx.translate(cx,cy); 
+            ctx.fillStyle = '#38bdf8'; ctx.fillRect(-10, -10, 20, 20); 
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(-4, 0, 8, 10); ctx.restore();
+
+            // Render Rings & Points based on Phase
+            if (phase === 'PI') {
+                for (let rSq = 1; rSq <= piMaxR; rSq++) {
+                    let sumChi = getComputedSum(rSq);
+                    let hasAnsweredAll = (sumChi !== undefined);
+                    let isHovered = (hoveredRSq === rSq);
+                    
+                    let strokeColor = '#1e293b'; 
+                    let fillColor = '#334155';
+                    let lineWidth = 1;
+                    let ptRadius = 2;
+
+                    if (isHovered) {
+                        strokeColor = '#38bdf8'; 
+                        fillColor = '#7dd3fc';
+                        lineWidth = 3;
+                        ptRadius = 4;
+                    } else if (hasAnsweredAll) {
+                        if (sumChi > 0) {
+                            strokeColor = '#34d399'; 
+                            fillColor = '#10b981';
+                            lineWidth = 1.5 + sumChi; 
+                            ptRadius = 2 + sumChi * 1.5; 
+                        } else {
+                            strokeColor = '#fb7185'; 
+                            fillColor = '#f43f5e';
+                            lineWidth = 2;
+                            ptRadius = 3;
+                        }
+                    } else {
+                        let pts = getExactHitPoints(rSq);
+                        if (pts.length > 0) {
+                            strokeColor = '#475569';
+                            fillColor = '#64748b';
+                        }
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, Math.sqrt(rSq) * scale, 0, 6.28);
+                    ctx.strokeStyle = strokeColor;
+                    ctx.lineWidth = lineWidth;
+                    
+                    if (isHovered) {
+                        ctx.shadowColor = strokeColor;
+                        ctx.shadowBlur = 10;
+                    }
+                    ctx.stroke();
+                    if (isHovered) ctx.shadowBlur = 0; 
+
+                    let displayPts = false;
+                    let pts = getExactHitPoints(rSq);
+                    
+                    if (isHovered || (hasAnsweredAll && sumChi > 0) || (!hasAnsweredAll && pts.length > 0)) {
+                        displayPts = true;
+                    }
+
+                    if (displayPts) {
+                        let dPts = getDisplayPts(rSq);
+                        ctx.fillStyle = fillColor;
+                        if (isHovered) {
+                            ctx.shadowColor = strokeColor;
+                            ctx.shadowBlur = 10;
+                        }
+                        dPts.forEach(p => {
+                            ctx.beginPath();
+                            ctx.arc(cx + p.x * scale, cy - p.y * scale, ptRadius, 0, 6.28);
+                            ctx.fill();
+                        });
+                        if (isHovered) ctx.shadowBlur = 0; 
+                    }
+                }
+
+                // Render Cancellation Explosions!
+                for (let i = piEliminations.length - 1; i >= 0; i--) {
+                    let el = piEliminations[i];
+                    el.timer -= 0.025; 
+                    if (el.timer <= 0) {
+                        piEliminations.splice(i, 1);
+                        continue;
+                    }
+                    
+                    let px = cx + el.x * scale;
+                    let py = cy - el.y * scale;
+                    let alpha = el.timer;
+                    let size = (1 - el.timer) * 20 + 5; 
+                    
+                    ctx.strokeStyle = `rgba(244, 63, 94, ${alpha})`;
+                    ctx.lineWidth = 3;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(px - size, py - size); ctx.lineTo(px + size, py + size);
+                    ctx.moveTo(px - size, py + size); ctx.lineTo(px + size, py - size);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(px, py, size, 0, 6.28);
+                    ctx.fillStyle = `rgba(244, 63, 94, ${alpha * 0.4})`;
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                
+            } else {
+                completedCircles.forEach((c, rSq) => {
+                    c.aR += (c.r - c.aR)*0.2;
+                    if (!c.active && phase === 'BUILD') return; 
+                    if (phase === 'BUILD' && !isHardMode && currentRSq !== null) {
+                        ctx.beginPath(); ctx.arc(cx, cy, Math.sqrt(currentRSq)*scale, 0, 6.28);
+                        ctx.strokeStyle = 'rgba(34, 211, 238, 0.4)'; ctx.setLineDash([5,5]); ctx.lineWidth=2; ctx.stroke(); ctx.setLineDash([]);
+                    }
+
+                    ctx.beginPath(); ctx.arc(cx, cy, c.aR*scale, 0, 6.28);
+                    ctx.strokeStyle = c.type==='green'?'#34d399':(c.type==='blue'?'#60a5fa':'#fb7185'); 
+                    
+                    if(!c.active) { 
+                        ctx.setLineDash([5,5]); ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]); 
+                        return; 
+                    }
+                    
+                    ctx.lineWidth = 2; ctx.stroke();
+                    
+                    if(c.r - c.aR < 0.1) {
+                        ctx.fillStyle = ctx.strokeStyle; 
+                        ctx.lineWidth = 3;
+                        c.pts.forEach(p => { 
+                            let px = cx+p.x*scale, py = cy-p.y*scale;
+                            let angle = Math.atan2(-p.y, p.x);
+                            ctx.beginPath(); 
+                            ctx.moveTo(px, py); 
+                            ctx.lineTo(px + Math.cos(angle)*10, py + Math.sin(angle)*10); 
+                            ctx.stroke();
+                            ctx.beginPath(); ctx.arc(px, py, 4, 0, 6.28); ctx.fill();
+                        });
+                    }
+                });
+            }
+
+            // Render background flashes for PI logic OVER the base rings
+            if (flashAlpha > 0 && phase === 'PI') {
+                flashAlpha -= 0.015;
+                ctx.save(); ctx.translate(cx, cy);
+                highlightedRings.forEach(rSq => {
+                    let pts = getDisplayPts(rSq);
+                    ctx.beginPath(); ctx.arc(0, 0, Math.sqrt(rSq)*scale, 0, 6.28);
+                    ctx.strokeStyle = `rgba(${flashChiColor}, ${flashAlpha * 0.6})`; 
+                    ctx.lineWidth = 3 + flashAlpha * 2; 
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = `rgba(${flashChiColor}, ${flashAlpha})`;
+                    pts.forEach(p => { 
+                        ctx.beginPath(); 
+                        ctx.arc(p.x*scale, -p.y*scale, 6 + flashAlpha*4, 0, 6.28); 
+                        ctx.fill(); 
+                    });
+                });
+                ctx.restore();
+            }
+
+            // Background Dots 
+            if (scale > 8 && phase !== 'PI') {
+                ctx.fillStyle = '#334155'; ctx.beginPath();
+                for(let x=sX; x<=eX; x++) {
+                    for(let y=sY; y<=eY; y++) {
+                        if (!foundPts.has(ptKey(x,y))) ctx.rect(cx+x*scale-1, cy-y*scale-1, 2, 2);
+                    }
+                }
+                ctx.fill();
+            }
+
+            // Found Target Points
+            if (foundPts.size > 0 && phase !== 'PI') {
+                ctx.fillStyle = '#facc15'; ctx.strokeStyle = 'rgba(250, 204, 21, 0.5)'; ctx.lineWidth = 3; ctx.beginPath();
+                foundPts.forEach(k => {
+                    let [x,y] = k.split(',').map(Number);
+                    ctx.moveTo(cx+x*scale, cy-y*scale); ctx.arc(cx+x*scale, cy-y*scale, 5, 0, 6.28);
+                });
+                ctx.fill(); ctx.stroke();
+            }
+
+            // Hover Point
+            if (hPt && !foundPts.has(ptKey(hPt.x, hPt.y)) && phase !== 'PI') {
+                ctx.fillStyle = '#94a3b8'; ctx.beginPath(); ctx.arc(cx+hPt.x*scale, cy-hPt.y*scale, 5, 0, 6.28); ctx.fill();
+            }
+
+            // Bullets
+            if (phase !== 'PI') {
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    let b = bullets[i];
+                    if (!monsters.includes(b.target)) {
+                        bullets.splice(i, 1); continue;
+                    }
+                    
+                    let mx = cx + Math.cos(b.target.a)*b.target.dist*scale;
+                    let my = cy - Math.sin(b.target.a)*b.target.dist*scale;
+                    let angle = Math.atan2(my - b.y, mx - b.x);
+                    
+                    b.x += Math.cos(angle) * b.speed;
+                    b.y += Math.sin(angle) * b.speed;
+
+                    ctx.fillStyle = b.type === 'green' ? '#34d399' : (b.type === 'blue' ? '#60a5fa' : '#fb7185');
+                    ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 6.28); ctx.fill();
+                    
+                    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(b.x - Math.cos(angle)*8, b.y - Math.sin(angle)*8); ctx.lineTo(b.x, b.y); ctx.stroke();
+
+                    if (Math.hypot(mx - b.x, my - b.y) < 15) {
+                        explode(mx, my, b.target.t==='green'?'168,85,247':(b.target.t==='blue'?'249,115,22':'132,204,22'));
+                        score += 50; updateUI();
+                        monsters.splice(monsters.indexOf(b.target), 1);
+                        bullets.splice(i, 1);
+                    }
+                }
+            }
+
+            // Monsters
+            if (phase !== 'PI') {
+                for (let i = monsters.length - 1; i >= 0; i--) {
+                    let m = monsters[i]; 
+                    
+                    if (phase === 'DEFEND' && !gameOver) {
+                        m.dist -= m.speed; 
+                        m.w += 0.1;
+                    }
+                    
+                    let px = cx + Math.cos(m.a)*m.dist*scale, py = cy - Math.sin(m.a)*m.dist*scale;
+                    
+                    if (!gameOver && m.dist <= Math.sqrt(m.rSq) && completedCircles.get(m.rSq)?.active) {
+                        explode(px, py, m.t==='green'?'168,85,247':(m.t==='blue'?'249,115,22':'132,204,22'));
+                        score += 100; updateUI(); monsters.splice(i, 1); continue;
+                    }
+                    if (!gameOver && phase === 'DEFEND' && m.dist*scale <= 15) {
+                        health--; updateUI(); explode(cx, cy, '244,63,94'); monsters.splice(i, 1); continue;
+                    }
+                    
+                    ctx.save(); ctx.translate(px, py+Math.sin(m.w)*3);
+                    let s = 10;
+                    
+                    if (m.t === 'green') {
+                        ctx.fillStyle = '#a855f7';
+                        ctx.beginPath(); ctx.roundRect(-s, -s, s*2, s*2, 4); ctx.fill();
+                        ctx.fillStyle = '#fff'; ctx.fillRect(-5, -4, 4, 4); ctx.fillRect(1, -4, 4, 4);
+                        ctx.fillStyle = '#000'; ctx.fillRect(-3, -2, 2, 2); ctx.fillRect(3, -2, 2, 2);
+                    } else if (m.t === 'blue') {
+                        ctx.fillStyle = '#f97316';
+                        ctx.beginPath(); ctx.arc(0, 0, s, 0, 6.28); ctx.fill();
+                        ctx.fillStyle = '#22d3ee'; ctx.fillRect(-8, -4, 16, 6);
+                        ctx.fillStyle = '#fff'; ctx.fillRect(-4, -2, 8, 2);
+                    } else {
+                        ctx.fillStyle = '#84cc16';
+                        ctx.beginPath(); ctx.arc(0, -2, s, Math.PI, 0); 
+                        ctx.lineTo(s, s); ctx.lineTo(s*0.5, s-3); ctx.lineTo(0, s); ctx.lineTo(-s*0.5, s-3); ctx.lineTo(-s, s); ctx.fill();
+                        ctx.fillStyle = '#064e3b';
+                        ctx.beginPath(); ctx.arc(-4, -2, 2.5, 0, 6.28); ctx.fill();
+                        ctx.beginPath(); ctx.arc(4, -2, 2.5, 0, 6.28); ctx.fill();
+                    }
+                    
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline='middle';
+                    ctx.fillText(m.rSq, 0, s + 8);
+                    ctx.restore();
+                }
+            }
+
+            // Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                ctx.fillStyle = `rgba(${p.c}, ${p.l})`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.1, p.l * 4), 0, 6.28); ctx.fill();
+                if(!gameOver) { p.x += p.vx; p.y += p.vy; p.l -= 0.05; }
+                if (p.l <= 0) particles.splice(i, 1);
+            }
+
+            // Flashes
+            for (let i = flashes.length - 1; i >= 0; i--) {
+                let f = flashes[i]; if(!gameOver) f.a -= 0.05;
+                if (f.a <= 0) { flashes.splice(i, 1); continue; }
+                ctx.beginPath(); ctx.arc(f.x, f.y, 15 - f.a*10, 0, 6.28);
+                ctx.strokeStyle = `rgba(${f.c}, ${f.a})`; ctx.lineWidth = 3; ctx.stroke();
+            }
+
+            // Floating Text in PI Phase
+            if (phase === 'PI') {
+                for (let i = piFloatingTexts.length - 1; i >= 0; i--) {
+                    let ft = piFloatingTexts[i];
+                    ft.life -= 1;
+                    ft.yOffset += 0.8;
+                    let alpha = Math.min(1, ft.life / 20); 
+                    
+                    ctx.save();
+                    ctx.font = 'bold 24px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = `rgba(11, 17, 32, ${alpha})`;
+                    ctx.strokeText(ft.text, cx, cy - 60 - ft.yOffset);
+                    
+                    ctx.fillStyle = `rgba(${ft.color}, ${alpha})`;
+                    ctx.shadowColor = `rgba(${ft.color}, ${alpha})`;
+                    ctx.shadowBlur = 15;
+                    ctx.fillText(ft.text, cx, cy - 60 - ft.yOffset);
+                    ctx.restore();
+                    
+                    if (ft.life <= 0) piFloatingTexts.splice(i, 1);
+                }
+            }
+            
+            reqId = requestAnimationFrame(loop);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.play-again-btn').forEach(btn => {
+                btn.addEventListener('click', initGame);
+            });
+            
+            skipBtn.addEventListener('click', () => {
+                if (!gameOver && phase === 'BUILD') phaseTime = 0;
+            });
+            
+            // Wire up main menu buttons
+            let btnEasy = document.getElementById('btn-easy');
+            if (btnEasy) btnEasy.addEventListener('click', () => { isHardMode = false; initGame(); });
+            
+            let btnHard = document.getElementById('btn-hard');
+            if (btnHard) btnHard.addEventListener('click', () => { isHardMode = true; initGame(); });
+
+            let mainMenuBtn = document.getElementById('pi-main-menu-btn');
+            if (mainMenuBtn) mainMenuBtn.addEventListener('click', showMainMenu);
+            
+            let overMainMenuBtn = document.querySelector('#game-over .main-menu-btn');
+            if (overMainMenuBtn) overMainMenuBtn.addEventListener('click', showMainMenu);
+            
+            showMainMenu();
+        });
+
+    </script>
+</body>
+</html>        .animate-shake { animation: shake 0.3s ease-in-out; }
     </style>
 </head>
 <body class="flex flex-col h-screen w-screen overflow-hidden">
