@@ -39,11 +39,29 @@
 </head>
 <body class="flex flex-col h-screen w-screen overflow-hidden">
 
+    <!-- Main Menu Overlay -->
+    <div id="main-menu" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center pointer-events-auto transition-opacity duration-500">
+        <h1 class="text-5xl md:text-7xl font-bold text-cyan-400 mb-4 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)] text-center tracking-widest">GAUSS DEFENDER</h1>
+        <p class="text-slate-300 text-lg md:text-xl mb-12 max-w-2xl text-center px-6">Defend the origin by calculating and building the exact lattice points of R² circles.</p>
+        
+        <div class="flex flex-col md:flex-row gap-6 px-4">
+            <button id="btn-easy" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-8 rounded-2xl shadow-[0_0_20px_rgba(52,211,153,0.4)] transition-all transform hover:scale-105 cursor-pointer flex flex-col items-center justify-center border-2 border-emerald-400 min-w-[200px]">
+                <span class="text-2xl tracking-widest mb-1">EASY</span>
+                <span class="text-xs font-normal opacity-90">Target rings are highlighted</span>
+            </button>
+            
+            <button id="btn-hard" class="bg-rose-600 hover:bg-rose-500 text-white font-bold py-4 px-8 rounded-2xl shadow-[0_0_20px_rgba(244,63,94,0.4)] transition-all transform hover:scale-105 cursor-pointer flex flex-col items-center justify-center border-2 border-rose-400 min-w-[200px]">
+                <span class="text-2xl tracking-widest mb-1">HARD</span>
+                <span class="text-xs font-normal opacity-90">No ring hints</span>
+            </button>
+        </div>
+    </div>
+
     <!-- Canvas Area (Top) -->
     <div class="flex-1 relative overflow-hidden" id="canvas-container">
         
         <!-- Top UI Elements -->
-        <div id="top-ui" class="absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none z-10 transition-opacity duration-1000">
+        <div id="top-ui" class="absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none z-10 transition-opacity duration-1000 hidden opacity-0">
             
             <!-- Health & Score -->
             <div class="bg-slate-800/90 border border-slate-700 rounded-xl p-3 shadow-2xl backdrop-blur-sm flex flex-col gap-2 min-w-[150px] pointer-events-auto">
@@ -52,7 +70,7 @@
                     <div id="health-bar" class="flex justify-center gap-1"></div>
                 </div>
                 <div class="text-center">
-                    <p class="text-emerald-400 text-[10px] font-bold uppercase mb-0.5">Score</p>
+                    <p class="text-emerald-400 text-[10px] font-bold uppercase mb-0.5">Points Built</p>
                     <p id="score-val" class="text-xl font-bold text-emerald-300">0</p>
                 </div>
             </div>
@@ -109,7 +127,10 @@
                 <div id="pi-calculation" class="bg-slate-950 border border-slate-700 rounded-xl p-4 w-full text-left font-mono text-xs md:text-sm text-slate-300 mb-6 space-y-2 shadow-inner min-h-[250px] max-h-[40vh] overflow-y-auto custom-scrollbar leading-relaxed">
                     <!-- JS will animate the math here -->
                 </div>
-                <button class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_15px_rgba(8,145,178,0.5)] transition-transform hover:scale-105 active:scale-95 hidden" id="rebuild-btn">Rebuild Defenses</button>
+                <div class="flex gap-4 justify-center mt-2">
+                    <button id="rebuild-btn" class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-full shadow-[0_0_15px_rgba(8,145,178,0.5)] transition-transform hover:scale-105 active:scale-95 hidden">Play Again</button>
+                    <button id="pi-main-menu-btn" class="main-menu-btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-full shadow-[0_0_15px_rgba(71,85,105,0.5)] border border-slate-500 transition-transform hover:scale-105 active:scale-95 hidden">Main Menu</button>
+                </div>
             </div>
         </div>
 
@@ -117,16 +138,21 @@
         <div id="game-over" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-center pointer-events-auto">
             <h1 class="text-6xl font-bold text-rose-500 mb-4 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]">DEFENSES BREACHED</h1>
             <p class="text-xl text-slate-300 mb-8">The monsters reached the origin.</p>
-            <button class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all transform hover:scale-105 cursor-pointer z-50">
-                Play Again
-            </button>
+            <div class="flex gap-4 z-50">
+                <button class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all transform hover:scale-105 cursor-pointer">
+                    Play Again
+                </button>
+                <button class="main-menu-btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-8 rounded-full border border-slate-500 shadow-[0_0_20px_rgba(71,85,105,0.4)] transition-all transform hover:scale-105 cursor-pointer">
+                    Main Menu
+                </button>
+            </div>
         </div>
 
         <canvas id="game-canvas" class="block w-full h-full cursor-crosshair"></canvas>
     </div>
 
     <!-- Bottom Shield Control Panel -->
-    <div id="bottom-panel" class="bg-slate-900 border-t border-slate-700 flex flex-col z-20 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.5)] shrink-0 h-32 pointer-events-auto relative transition-opacity duration-1000">
+    <div id="bottom-panel" class="bg-slate-900 border-t border-slate-700 flex flex-col z-20 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.5)] shrink-0 h-32 pointer-events-auto relative transition-opacity duration-1000 hidden opacity-0">
         <div class="px-6 py-3 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
             <h2 class="text-md font-bold text-slate-100">Shield Layers (Sequential Build)</h2>
             <button id="center-btn" onclick="centerCamera()" class="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow cursor-pointer transition-colors z-30">
@@ -243,6 +269,7 @@
         const PHASE_DURATION = 30.0; 
 
         // Game State Variables
+        let isHardMode = false;
         let health, score, gameOver, animationFrameId, lastTime;
         let currentWaveIndex, currentPhase, phaseTimeLeft;
         
@@ -368,8 +395,17 @@
                 currentPhase = 'BUILD';
                 phaseTimeLeft = PHASE_DURATION;
                 currentWaveIndex++;
-                
-                showFeedback("Wave " + currentWaveIndex + " Survived!");
+                bullets = []; 
+
+                if (monsters.length > 0) {
+                    monsters.forEach(m => {
+                        let px = cx + Math.cos(m.angle) * (m.dist * scale);
+                        let py = cy - Math.sin(m.angle) * (m.dist * scale);
+                        createExplosion(px, py, '250, 204, 21'); 
+                    });
+                    monsters = [];
+                    showFeedback("Wave Cleared!");
+                }
                 
                 let newTargets = [];
                 if (currentWaveIndex < WAVES.length) {
@@ -648,8 +684,6 @@
                     let m = b.target;
                     let colorStr = m.type === 'green' ? '168, 85, 247' : (m.type === 'blue' ? '249, 115, 22' : '132, 204, 22');
                     createExplosion(mx, my, colorStr);
-                    score += 50;
-                    if (scoreValEl) scoreValEl.textContent = score;
                     monsters.splice(monsters.indexOf(b.target), 1);
                     bullets.splice(i, 1);
                 }
@@ -660,7 +694,6 @@
             for (let i = monsters.length - 1; i >= 0; i--) {
                 let m = monsters[i];
                 
-                // Monsters only advance towards the castle during the DEFEND phase
                 if (currentPhase === 'DEFEND' && !gameOver) {
                     m.dist -= m.speed;
                 }
@@ -675,8 +708,6 @@
                     if (circleData && circleData.isActive) {
                         let colorStr = m.type === 'green' ? '168, 85, 247' : (m.type === 'blue' ? '249, 115, 22' : '132, 204, 22');
                         createExplosion(px, py, colorStr);
-                        score += 100;
-                        if (scoreValEl) scoreValEl.textContent = score;
                         monsters.splice(i, 1);
                         continue;
                     }
@@ -841,6 +872,8 @@
             if (clickedRSq === currentTargetRSq) {
                 if (!foundPoints.has(ptKey)) {
                     foundPoints.add(ptKey);
+                    score += 1;
+                    if (scoreValEl) scoreValEl.textContent = score;
                     
                     let btn = buttonsMap.get(currentTargetRSq);
                     if (btn) {
@@ -1146,6 +1179,8 @@
 
             let rebuildBtn = document.getElementById('rebuild-btn');
             if (rebuildBtn) rebuildBtn.classList.add('hidden');
+            let piMainMenuBtn = document.getElementById('pi-main-menu-btn');
+            if (piMainMenuBtn) piMainMenuBtn.classList.add('hidden');
 
             steps.forEach((step, idx) => {
                 setTimeout(() => {
@@ -1153,7 +1188,7 @@
                     p.innerHTML = step;
                     p.className = "opacity-0 transition-opacity duration-500 mb-2";
                     calcDiv.appendChild(p);
-                    void p.offsetWidth; // reflow
+                    void p.offsetWidth; 
                     p.classList.remove('opacity-0');
                     calcDiv.scrollTop = calcDiv.scrollHeight;
 
@@ -1163,6 +1198,9 @@
                                 rebuildBtn.classList.remove('hidden');
                                 rebuildBtn.classList.add('animate-bounce');
                                 setTimeout(() => rebuildBtn.classList.remove('animate-bounce'), 1000);
+                            }
+                            if (piMainMenuBtn) {
+                                piMainMenuBtn.classList.remove('hidden');
                             }
                             calcDiv.scrollTop = calcDiv.scrollHeight;
                         }, 1000);
@@ -1224,7 +1262,6 @@
             ctx.scale(0.8, 0.8);
             
             ctx.fillStyle = '#38bdf8'; ctx.beginPath();
-            // Fallback square instead of roundRect to prevent crashes in embedded browsers
             ctx.moveTo(-6, -12); ctx.lineTo(6, -12); ctx.quadraticCurveTo(12, -12, 12, -6);
             ctx.lineTo(12, 6); ctx.quadraticCurveTo(12, 12, 6, 12); ctx.lineTo(-6, 12);
             ctx.quadraticCurveTo(-12, 12, -12, 6); ctx.lineTo(-12, -6); ctx.quadraticCurveTo(-12, -12, -6, -12);
@@ -1264,8 +1301,7 @@
                 ctx.fillStyle = bodyCol; ctx.beginPath(); ctx.arc(5, -3, 1.5, 0, Math.PI*2); ctx.fill();
             }
 
-            let textCol = (m.type === 'red') ? '#064e3b' : '#fff'; 
-            ctx.fillStyle = textCol; ctx.font = 'bold 11px monospace';
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.rSq, 0, 18);
             
             ctx.restore();
@@ -1284,7 +1320,8 @@
             for(let x = sX; x <= eX; x++) {
                 for(let y = sY; y <= eY; y++) {
                     const ptKey = `${x},${y}`;
-                    if (!allFoundPoints.has(ptKey) && !foundPoints.has(ptKey)) {
+                    let isAllFound = allFoundPoints.has(ptKey) && currentPhase !== 'BUILD';
+                    if (!isAllFound && !foundPoints.has(ptKey)) {
                         let isHovered = hoveredPoint && hoveredPoint.x === x && hoveredPoint.y === y;
                         if (!isHovered) {
                             const px = cx + x * scale; const py = cy - y * scale;
@@ -1305,7 +1342,7 @@
                     if (foundPoints.has(ptKey)) {
                         ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
                         ctx.strokeStyle = 'rgba(250, 204, 21, 0.5)'; ctx.lineWidth = 2; ctx.stroke();
-                    } else if (allFoundPoints.has(ptKey)) {
+                    } else if (allFoundPoints.has(ptKey) && currentPhase !== 'BUILD') {
                         ctx.fillStyle = '#475569'; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
                     } else if (isHovered) {
                         ctx.fillStyle = '#94a3b8'; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
@@ -1315,6 +1352,20 @@
         }
 
         function drawCircles() {
+            if (currentPhase === 'BUILD') {
+                if (!isHardMode && currentTargetRSq !== null) {
+                    let r = Math.sqrt(currentTargetRSq);
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(34, 211, 238, 0.4)';
+                    ctx.setLineDash([5, 5]);
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+                return;
+            }
+
             for (let [rSq, circle] of completedCircles) {
                 if (circle.animR < circle.radius) circle.animR += circle.radius * 0.1;
                 if (circle.animR > circle.radius) circle.animR = circle.radius;
@@ -1500,8 +1551,45 @@
             }
         }
 
-        function initGame() {
+        function showMainMenu() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            document.getElementById('main-menu').style.display = 'flex';
+            document.getElementById('game-over').style.display = 'none';
+            
+            if (topUI) {
+                topUI.style.opacity = "0";
+                setTimeout(() => { if(document.getElementById('main-menu').style.display === 'flex') topUI.style.display = "none"; }, 1000);
+            }
+            if (bottomUI) {
+                bottomUI.style.opacity = "0";
+                setTimeout(() => { if(document.getElementById('main-menu').style.display === 'flex') bottomUI.style.display = "none"; }, 1000);
+            }
+            
+            if (piPhaseContainer) {
+                piPhaseContainer.classList.add('translate-y-full', 'md:translate-x-full', 'md:translate-y-0');
+                setTimeout(() => {
+                    piPhaseContainer.classList.add('hidden');
+                    piPhaseContainer.classList.remove('flex');
+                }, 700);
+            }
+            
+            resizeCanvas();
+            cx = canvas.width / 2;
+            cy = canvas.height / 2;
+            scale = 20;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawCastle();
+        }
+
+        function initGame(mode) {
             try {
+                if (mode === 'easy') isHardMode = false;
+                else if (mode === 'hard') isHardMode = true;
+
+                document.getElementById('main-menu').style.display = 'none';
+
                 if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
                 health = 5; score = 0; gameOver = false;
@@ -1531,11 +1619,11 @@
                 if (gameOverScreen) gameOverScreen.style.display = 'none';
                 if (topUI) {
                     topUI.style.display = "flex";
-                    topUI.style.opacity = "1";
+                    setTimeout(() => topUI.style.opacity = "1", 50);
                 }
                 if (bottomUI) {
                     bottomUI.style.display = "flex";
-                    bottomUI.style.opacity = "1";
+                    setTimeout(() => bottomUI.style.opacity = "1", 50);
                 }
                 
                 if (piPhaseContainer) {
@@ -1559,6 +1647,8 @@
                 
                 let rebuildBtn = document.getElementById('rebuild-btn');
                 if (rebuildBtn) rebuildBtn.classList.add('hidden');
+                let piMainMenuBtn = document.getElementById('pi-main-menu-btn');
+                if (piMainMenuBtn) piMainMenuBtn.classList.add('hidden');
                 
                 updateHealth();
                 if (shieldFlex) shieldFlex.innerHTML = '';
@@ -1641,9 +1731,15 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Attach securely to all play-again buttons
+            document.getElementById('btn-easy').addEventListener('click', () => initGame('easy'));
+            document.getElementById('btn-hard').addEventListener('click', () => initGame('hard'));
+
             document.querySelectorAll('.play-again-btn').forEach(btn => {
-                btn.addEventListener('click', initGame);
+                btn.addEventListener('click', () => initGame()); // Restart same difficulty
+            });
+
+            document.querySelectorAll('.main-menu-btn').forEach(btn => {
+                btn.addEventListener('click', showMainMenu);
             });
             
             if (skipBtn) {
@@ -1652,7 +1748,7 @@
                 });
             }
             
-            initGame();
+            showMainMenu();
         });
 
     </script>
