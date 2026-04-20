@@ -908,7 +908,7 @@
             let maxR = completedCircles.size > 0 ? Math.max(...Array.from(completedCircles.keys())) : 0;
             piMaxR = Math.max(maxR, 4); 
             
-            adjustCameraForPhase();
+            resizeCanvas();
 
             monsters = []; bullets = []; particles = []; errorFlashes = [];
             
