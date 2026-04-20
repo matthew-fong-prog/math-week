@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gauss Castle Defender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0B1120;
+            color: white;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            user-select: none;
+        }
+        @keyframes attention-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+        }
+        .heart { color: #f43f5e; font-size: 1.5rem; line-height: 1; }
+        .heart.lost { color: #334155; }
+        .attention { animation: attention-pulse 1.5s infinite; background-color: #0ea5e9; border-color: #38bdf8; color: white;}
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        #pi-phase { transition: backdrop-filter 0.5s ease, background-color 0.5s ease; }
+        .phase-reveal { backdrop-filter: blur(2px) !important; background-color: rgba(2,6,23,0.2) !important; }
+        
+        @keyframes glow-pi { 0%, 100% { text-shadow: 0 0 10px #34d399, 0 0 20px #34d399; } 50% { text-shadow: 0 0 20px #34d399, 0 0 40px #34d399; } }
+        .animate-glow-pi { animation: glow-pi 2s infinite; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-6px); } }
+        .animate-shake { animation: shake 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden">
+
+    <!-- Canvas Area (Top) -->
+    <div class="flex-1 relative overflow-hidden" id="canvas-container">
+        
+        <!-- Top UI Elements -->
+        <div id="top-ui" class="absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none z-10 transition-opacity duration-1000">
+            
+            <!-- Health & Score -->
+            <div class="bg-slate-800/90 border border-slate-700 rounded-xl p-3 shadow-2xl backdrop-blur-sm flex flex-col gap-2 min-w-[150px] pointer-events-auto">
+                <div class="text-center border-b border-slate-700 pb-2">
+                    <p class="text-slate-400 text-[10px] font-bold uppercase mb-1">Castle Integrity</p>
+                    <div id="health-bar" class="flex justify-center gap-1"></div>
+                </div>
+                <div class="text-center">
+                    <p class="text-emerald-400 text-[10px] font-bold uppercase mb-0.5">Score</p>
+                    <p id="score-val" class="text-xl font-bold text-emerald-300">0</p>
+                </div>
+            </div>
+
+            <!-- Central Phase Timer -->
+            <div class="flex flex-col items-center pointer-events-auto">
+                <div id="phase-banner" class="bg-emerald-900/80 border-2 border-emerald-500 rounded-full px-8 py-2 shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-all duration-500 transform scale-100">
+                    <p id="phase-title" class="text-emerald-300 font-bold uppercase tracking-widest text-sm text-center">Build Phase</p>
+                    <p id="phase-timer" class="text-white font-mono text-3xl font-bold text-center mt-1 drop-shadow-md">30.0s</p>
+                </div>
+                <button id="skip-btn" class="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-widest py-1.5 px-4 rounded-full shadow-lg transition-colors cursor-pointer">
+                    Skip Build
+                </button>
+            </div>
+            
+            <div class="min-w-[150px]"></div>
+        </div>
+
+        <!-- Floating Feedback Text -->
+        <div class="absolute top-24 left-1/2 transform -translate-x-1/2 pointer-events-none z-50">
+            <p id="feedback-text" class="text-xl font-bold text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)] opacity-0 transition-opacity duration-300 text-center"></p>
+        </div>
+
+        <!-- Hover Info -->
+        <div id="hover-info" class="absolute bg-slate-900/90 border border-slate-600 rounded p-2 pointer-events-none opacity-0 transition-opacity duration-100 z-20 shadow-lg" style="transform: translate(-50%, -150%);">
+            <p id="hover-coords" class="text-xs font-bold text-cyan-400 font-mono"></p>
+        </div>
+
+        <!-- The Pattern Phase Panel (Side/Bottom) -->
+        <div id="pi-phase" class="absolute bottom-0 right-0 w-full h-[60vh] md:h-full md:top-0 md:bottom-auto md:w-[500px] lg:w-[600px] bg-slate-950/95 backdrop-blur-xl z-50 hidden flex-col items-center justify-start pointer-events-auto p-4 md:p-6 overflow-y-auto border-t md:border-t-0 md:border-l border-slate-700 shadow-2xl custom-scrollbar transition-transform duration-700 translate-y-full md:translate-y-0 md:translate-x-full">
+            <h1 class="text-3xl font-bold text-cyan-400 mb-2 tracking-widest text-center mt-2">THE PATTERN OF R²</h1>
+            <p class="text-slate-400 mb-4 text-center text-sm">
+                Each divisor <span class="text-emerald-400 italic font-serif">d</span> governs specific rings on the battlefield. Assign the correct <span class="text-emerald-400 italic font-serif">&chi;(d)</span> values to the columns. <br><span class="text-yellow-200 italic">Hover over the columns or blocks to highlight their rings.</span>
+            </p>
+
+            <!-- Dynamic Grid Area -->
+            <div class="bg-slate-900/80 border border-slate-700 rounded-xl p-3 md:p-5 mb-6 shadow-xl w-full flex flex-col relative transition-opacity duration-300" id="matrix-panel">
+                <div id="pi-grid-container" class="w-full overflow-x-auto custom-scrollbar pb-2 flex justify-start md:justify-center">
+                    <!-- Matrix injected here -->
+                </div>
+            </div>
+
+            <!-- Block Area -->
+            <div id="pi-interactive-area" class="w-full flex flex-col items-center">
+                <p class="text-slate-500 text-xs tracking-widest uppercase mb-2">Term Bank</p>
+                <div id="pi-blocks" class="flex flex-wrap gap-2 justify-center items-center min-h-[60px]">
+                    <!-- Clickable blocks injected here -->
+                </div>
+            </div>
+
+            <!-- Mathematical Calculation Readout -->
+            <div id="pi-message" class="text-center mt-2 hidden flex-col items-center pb-8 w-full">
+                <p class="text-2xl font-bold text-emerald-400 animate-glow-pi mb-4">PATTERN SOLVED</p>
+                <div id="pi-calculation" class="bg-slate-950 border border-slate-700 rounded-xl p-4 w-full text-left font-mono text-xs md:text-sm text-slate-300 mb-6 space-y-2 shadow-inner min-h-[250px] max-h-[40vh] overflow-y-auto custom-scrollbar leading-relaxed">
+                    <!-- JS will animate the math here -->
+                </div>
+                <button id="rebuild-btn" class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_15px_rgba(8,145,178,0.5)] transition-transform hover:scale-105 active:scale-95 hidden">Rebuild Defenses</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-center pointer-events-auto">
+            <h1 class="text-6xl font-bold text-rose-500 mb-4 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]">DEFENSES BREACHED</h1>
+            <p class="text-xl text-slate-300 mb-8">The monsters reached the origin.</p>
+            <button class="play-again-btn bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all transform hover:scale-105 cursor-pointer z-50">
+                Play Again
+            </button>
+        </div>
+
+        <canvas id="game-canvas" class="block w-full h-full cursor-crosshair"></canvas>
+    </div>
+
+    <!-- Bottom Shield Control Panel -->
+    <div id="bottom-panel" class="bg-slate-900 border-t border-slate-700 flex flex-col z-20 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.5)] shrink-0 h-32 pointer-events-auto relative transition-opacity duration-1000">
+        <div class="px-6 py-3 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
+            <h2 class="text-md font-bold text-slate-100">Shield Layers (Sequential Build)</h2>
+            <button id="center-btn" onclick="centerCamera()" class="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow cursor-pointer transition-colors z-30">
+                Center Castle
+            </button>
+        </div>
+        <div class="flex-1 overflow-x-auto overflow-y-hidden px-4 py-2 custom-scrollbar flex items-center justify-start">
+            <div id="shield-flex" class="flex gap-4 px-2 items-center h-full"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        
+        // UI Nodes
+        const feedbackText = document.getElementById('feedback-text');
+        const healthBar = document.getElementById('health-bar');
+        const scoreValEl = document.getElementById('score-val');
+        const hoverInfoEl = document.getElementById('hover-info');
+        const hoverCoordsEl = document.getElementById('hover-coords');
+        const gameOverScreen = document.getElementById('game-over');
+        const shieldFlex = document.getElementById('shield-flex');
+        const centerBtn = document.getElementById('center-btn');
+        const skipBtn = document.getElementById('skip-btn');
+        const topUI = document.getElementById('top-ui');
+        const bottomUI = document.getElementById('bottom-panel');
+        
+        // Timer UI Nodes
+        const phaseBanner = document.getElementById('phase-banner');
+        const phaseTitle = document.getElementById('phase-title');
+        const phaseTimer = document.getElementById('phase-timer');
+
+        // PI UI Nodes
+        const piPhaseContainer = document.getElementById('pi-phase');
+        const piGridContainer = document.getElementById('pi-grid-container');
+        const piBlocksContainer = document.getElementById('pi-blocks');
+        const piInteractiveArea = document.getElementById('pi-interactive-area');
+        const piMessage = document.getElementById('pi-message');
+
+        const btnStyles = {
+            waiting: 'bg-slate-800/50 border border-slate-700/50 text-slate-500 font-mono rounded-lg py-1.5 px-3 text-base font-bold text-center flex flex-col items-center justify-center transition-colors min-w-[84px] opacity-60',
+            active_build: 'bg-slate-800 border-2 border-cyan-400 text-cyan-300 font-mono rounded-lg py-1.5 px-3 text-base font-bold cursor-default text-center flex flex-col items-center justify-center shadow-[0_0_15px_rgba(34,211,238,0.4)] min-w-[84px]',
+            active_mine: 'bg-rose-900 border-2 border-rose-500 text-rose-300 font-mono rounded-lg py-1.5 px-3 text-base font-bold cursor-pointer text-center flex flex-col items-center justify-center hover:bg-rose-800 transition-all shadow-[0_0_15px_rgba(225,29,72,0.6)] min-w-[84px] animate-pulse',
+            green: {
+                on: 'bg-emerald-600 border border-emerald-400 text-white font-mono rounded-lg py-1.5 px-3 text-base font-bold shadow-[0_0_15px_rgba(52,211,153,0.6)] transition-all cursor-pointer text-center flex flex-col items-center justify-center min-w-[84px]',
+                off: 'bg-slate-900 border border-emerald-800/50 text-emerald-700 font-mono rounded-lg py-1.5 px-3 text-base font-bold transition-all cursor-pointer text-center hover:border-emerald-700 flex flex-col items-center justify-center min-w-[84px]'
+            },
+            blue: {
+                on: 'bg-blue-600 border border-blue-400 text-white font-mono rounded-lg py-1.5 px-3 text-base font-bold shadow-[0_0_15px_rgba(96,165,250,0.6)] transition-all cursor-pointer text-center flex flex-col items-center justify-center min-w-[84px]',
+                off: 'bg-slate-900 border border-blue-800/50 text-blue-700 font-mono rounded-lg py-1.5 px-3 text-base font-bold transition-all cursor-pointer text-center hover:border-blue-700 flex flex-col items-center justify-center min-w-[84px]'
+            },
+            red: {
+                on: 'bg-rose-600 border border-rose-400 text-white font-mono rounded-lg py-1.5 px-3 text-base font-bold shadow-[0_0_15px_rgba(251,113,133,0.6)] transition-all cursor-pointer text-center flex flex-col items-center justify-center min-w-[84px]',
+                off: 'bg-slate-900 border border-rose-800/50 text-rose-700 font-mono rounded-lg py-1.5 px-3 text-base font-bold transition-all cursor-pointer text-center hover:border-rose-700 flex flex-col items-center justify-center min-w-[84px]'
+            }
+        };
+
+        // Math Logic
+        function isPowerOfTwo(n) { return n !== 0 && (n & (n - 1)) === 0; }
+
+        function determineCircleType(rSq) {
+            if (rSq === 0 || rSq === 1) return 'green';
+            if (isPowerOfTwo(rSq)) return 'blue';
+            let temp = rSq;
+            let hitsPoints = true;
+            for (let i = 2; i * i <= temp; i++) {
+                if (temp % i === 0) {
+                    let count = 0;
+                    while (temp % i === 0) { count++; temp /= i; }
+                    if (i % 4 === 3 && count % 2 !== 0) hitsPoints = false;
+                }
+            }
+            if (temp > 1 && temp % 4 === 3) hitsPoints = false;
+            return hitsPoints ? 'green' : 'red';
+        }
+
+        function getExactHitPoints(rSq) {
+            let points = [];
+            let limit = Math.floor(Math.sqrt(rSq));
+            for (let x = -limit; x <= limit; x++) {
+                let ySq = rSq - x * x;
+                let y = Math.round(Math.sqrt(ySq));
+                if (y * y === ySq) {
+                    points.push({x: x, y: y});
+                    if (y !== 0) points.push({x: x, y: -y});
+                }
+            }
+            return points;
+        }
+
+        function getDisplayPts(rSq) {
+            let pts = getExactHitPoints(rSq);
+            if (pts.length === 0) {
+                let r = Math.sqrt(rSq);
+                pts = [
+                    {x: r * Math.cos(Math.PI/4), y: r * Math.sin(Math.PI/4)},
+                    {x: r * Math.cos(3*Math.PI/4), y: r * Math.sin(3*Math.PI/4)},
+                    {x: r * Math.cos(5*Math.PI/4), y: r * Math.sin(5*Math.PI/4)},
+                    {x: r * Math.cos(7*Math.PI/4), y: r * Math.sin(7*Math.PI/4)}
+                ];
+            }
+            return pts;
+        }
+
+        const WAVES = [
+            [1, 2, 3, 4],       
+            [5, 6, 7, 8],       
+            [9, 10, 11, 12],    
+            [13, 14, 15, 16],   
+            [17, 18, 19, 20]    
+        ];
+        const PHASE_DURATION = 30.0; 
+
+        // Game State Variables
+        let health, score, gameOver, animationFrameId, lastTime;
+        let currentWaveIndex, currentPhase, phaseTimeLeft;
+        
+        let completedCircles; 
+        let targetQueue; 
+        let currentTargetRSq; 
+        let targetHitPoints; 
+        let foundPoints; 
+        
+        let activeWavePool; 
+        let allFoundPoints; 
+        let buttonsMap;
+
+        let monsters, particles, errorFlashes, waveTimer, bullets;
+
+        // PI Phase specific rendering globals
+        let piMaxR = 0;
+        let answeredDivisors = [];
+        let highlightedRings = [];
+        let flashChiColor = '255,255,255';
+        let flashAlpha = 0;
+        let hoveredDivisor = 0; 
+        let piEliminations = []; 
+        let piFloatingTexts = [];
+
+        // Camera / Map Navigation State
+        let scale = 15, targetScale = 15; 
+        let cx = 0, cy = 0; 
+        let targetCx = 0, targetCy = 0;
+        
+        let isDragging = false, hasDragged = false;
+        let dragStartX = 0, dragStartY = 0;
+        let lastMouseX = 0, lastMouseY = 0;
+        let screenMouseX = -100, screenMouseY = -100;
+        let hoveredPoint = null;
+
+        function createExplosion(px, py, color) {
+            for(let i=0; i<20; i++) {
+                particles.push({
+                    x: px, y: py,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 1,
+                    color: color
+                });
+            }
+        }
+
+        function drawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                ctx.fillStyle = `rgba(${p.color}, ${p.life})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.life * 4, 0, Math.PI * 2);
+                ctx.fill();
+                p.x += p.vx; p.y += p.vy;
+                p.life -= 0.05;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function updateHealth() {
+            healthBar.innerHTML = '';
+            for(let i=0; i<5; i++) {
+                healthBar.innerHTML += `<span class="heart ${i >= health ? 'lost' : ''}">♥</span>`;
+            }
+            if (health <= 0 && currentPhase !== 'PI') {
+                gameOver = true;
+                currentPhase = 'PI';
+                phaseTitle.textContent = "SYSTEM FAILURE";
+                phaseTimer.textContent = "0.0s";
+                phaseBanner.className = "bg-rose-900/80 border-2 border-rose-500 rounded-full px-8 py-1 shadow-[0_0_20px_rgba(225,29,72,0.6)] flex flex-col justify-center items-center";
+                skipBtn.style.display = 'none';
+                
+                topUI.style.transition = "opacity 1s"; 
+                topUI.style.opacity = "0";
+                bottomUI.style.opacity = "0";
+                
+                setTimeout(startPatternPhase, 1500);
+            }
+        }
+
+        function showFeedback(text, isError = false) {
+            feedbackText.textContent = text;
+            feedbackText.className = `text-xl font-bold drop-shadow-[0_0_10px_rgba(0,0,0,0.8)] text-center transition-opacity duration-300 ${isError ? 'text-rose-400' : 'text-emerald-400'} opacity-100`;
+            setTimeout(() => { feedbackText.classList.replace('opacity-100', 'opacity-0'); }, 1500);
+        }
+
+        // --- Phase Management ---
+        function switchPhase() {
+            if (currentPhase === 'BUILD') {
+                currentPhase = 'DEFEND';
+                phaseTimeLeft = PHASE_DURATION;
+                
+                phaseBanner.className = "bg-rose-900/80 border-2 border-rose-500 rounded-full px-8 py-2 shadow-[0_0_25px_rgba(225,29,72,0.6)] transition-all duration-500 transform scale-105 pointer-events-auto";
+                phaseTitle.textContent = `Defend Phase (Wave ${currentWaveIndex+1})`;
+                phaseTitle.className = "text-rose-300 font-bold uppercase tracking-widest text-sm text-center";
+                phaseTimer.className = "text-white font-mono text-3xl font-bold text-center mt-1 drop-shadow-[0_0_5px_rgba(244,63,94,0.8)]";
+                skipBtn.style.display = 'none';
+            } else {
+                currentPhase = 'BUILD';
+                phaseTimeLeft = PHASE_DURATION;
+                currentWaveIndex++;
+                bullets = []; 
+
+                if (monsters.length > 0) {
+                    monsters.forEach(m => {
+                        let px = cx + Math.cos(m.angle) * (m.dist * scale);
+                        let py = cy - Math.sin(m.angle) * (m.dist * scale);
+                        createExplosion(px, py, '250, 204, 21'); 
+                        score += 50; 
+                    });
+                    scoreValEl.textContent = score;
+                    monsters = [];
+                    showFeedback("Wave Cleared!");
+                }
+                
+                let newTargets = [];
+                if (currentWaveIndex < WAVES.length) {
+                    newTargets = [...WAVES[currentWaveIndex]];
+                } else {
+                    let base = 21 + (currentWaveIndex - WAVES.length) * 4;
+                    for(let i=0; i<4; i++) newTargets.push(base + i);
+                }
+
+                newTargets.sort((a, b) => a - b);
+
+                newTargets.forEach(rSq => {
+                    activeWavePool.push(rSq);
+                    targetQueue.push(rSq);
+                    createWaitingShieldButton(rSq);
+                });
+
+                ensureMaxTargetVisible();
+
+                if (currentTargetRSq === null && targetQueue.length > 0) {
+                    updateCurrentTarget();
+                }
+
+                phaseBanner.className = "bg-emerald-900/80 border-2 border-emerald-500 rounded-full px-8 py-2 shadow-[0_0_20px_rgba(52,211,153,0.5)] transition-all duration-500 transform scale-100 pointer-events-auto";
+                phaseTitle.textContent = `Build Phase (Wave ${currentWaveIndex+1})`;
+                phaseTitle.className = "text-emerald-300 font-bold uppercase tracking-widest text-sm text-center";
+                phaseTimer.className = "text-white font-mono text-3xl font-bold text-center mt-1 drop-shadow-md";
+                skipBtn.style.display = 'block';
+            }
+        }
+
+        // --- Camera & Dragging Logic ---
+        function centerCamera() {
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            targetCx = cw / 2;
+            targetCy = ch / 2;
+            centerBtn.classList.remove('attention');
+        }
+
+        function ensureMaxTargetVisible() {
+            let maxR2 = 1;
+            for (let rSq of activeWavePool) {
+                if (rSq > maxR2) maxR2 = rSq;
+            }
+            
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            const minDim = Math.min(cw, ch);
+            const r = Math.sqrt(maxR2);
+            const viewRadius = Math.max(10, r + 4); 
+            const neededScale = (minDim / 2) / viewRadius; 
+            
+            if (targetScale > neededScale) {
+                targetScale = Math.max(5, neededScale);
+            }
+            centerCamera();
+        }
+
+        function adjustCameraForPhase() {
+            if (currentPhase === 'PI') {
+                let isDesktop = window.innerWidth >= 768;
+                let panelWidth = isDesktop ? (window.innerWidth >= 1024 ? 600 : 500) : window.innerWidth;
+                let leftW = isDesktop ? window.innerWidth - panelWidth : window.innerWidth;
+                let topH = isDesktop ? canvas.height : canvas.height * 0.4;
+                
+                targetCx = leftW / 2; 
+                targetCy = topH / 2;
+                targetScale = Math.max(5, Math.min(leftW, topH) / 2 / (Math.sqrt(piMaxR) + 2));
+            } else {
+                targetCx = canvas.width / 2; 
+                targetCy = canvas.height / 2;
+                targetScale = Math.max(5, Math.min(canvas.width, canvas.height) / 2 / 10);
+            }
+        }
+
+        function updateCamera() {
+            scale += (targetScale - scale) * 0.1;
+            if (!isDragging) {
+                cx += (targetCx - cx) * 0.1;
+                cy += (targetCy - cy) * 0.1;
+            }
+            
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+
+            if (cx < 0 || cx > cw || cy < 0 || cy > ch) {
+                centerBtn.classList.add('attention');
+            } else {
+                centerBtn.classList.remove('attention');
+            }
+        }
+
+        // --- Shields & Targets (Sequential Ascending) ---
+        function createWaitingShieldButton(rSq) {
+            if (buttonsMap.has(rSq)) return; 
+            const btn = document.createElement('div');
+            btn.id = `shield-btn-${rSq}`;
+            btn.className = btnStyles.waiting;
+            btn.innerHTML = `R²=${rSq}<br><span class="text-[10px] uppercase">WAITING</span>`;
+            
+            shieldFlex.appendChild(btn);
+            buttonsMap.set(rSq, btn);
+            btn.scrollIntoView({ behavior: 'smooth', inline: 'end' });
+        }
+
+        function updateCurrentTarget() {
+            if (targetQueue.length > 0) {
+                currentTargetRSq = targetQueue[0];
+                targetHitPoints = getExactHitPoints(currentTargetRSq);
+                foundPoints.clear();
+
+                let btn = buttonsMap.get(currentTargetRSq);
+                if (btn) {
+                    if (targetHitPoints.length === 0) {
+                        btn.className = btnStyles.active_mine;
+                        btn.innerHTML = `R²=${currentTargetRSq}<br><span class="text-[10px] uppercase">Deploy Mine</span>`;
+                        btn.onclick = () => { if (!gameOver && currentTargetRSq === targetQueue[0]) completeCurrentTarget(); };
+                    } else {
+                        btn.className = btnStyles.active_build;
+                        btn.innerHTML = `R²=${currentTargetRSq}<br><span class="text-[10px] uppercase">0/${targetHitPoints.length} PTS</span>`;
+                        btn.onclick = null; 
+                    }
+                    btn.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                }
+            } else {
+                currentTargetRSq = null;
+                targetHitPoints = [];
+            }
+        }
+
+        function unlockShieldButton(rSq, type) {
+            const btn = buttonsMap.get(rSq);
+            if (!btn) return;
+            
+            btn.className = btnStyles[type].on;
+            btn.innerHTML = `R²=${rSq}<br><span class="text-[10px] uppercase">ON</span>`;
+
+            btn.onclick = () => {
+                let circleData = completedCircles.get(rSq);
+                if (!circleData) return;
+                
+                circleData.isActive = !circleData.isActive;
+                btn.className = circleData.isActive ? btnStyles[type].on : btnStyles[type].off;
+                btn.innerHTML = `R²=${rSq}<br><span class="text-[10px] uppercase">${circleData.isActive ? 'ON' : 'OFF'}</span>`;
+            };
+        }
+
+        function completeCurrentTarget() {
+            let rSq = currentTargetRSq;
+            const type = determineCircleType(rSq);
+            
+            let finalPts = [...targetHitPoints];
+            if (type === 'red') {
+                let r = Math.sqrt(rSq);
+                finalPts = [
+                    {x: r * Math.cos(Math.PI/4), y: r * Math.sin(Math.PI/4)},
+                    {x: r * Math.cos(3*Math.PI/4), y: r * Math.sin(3*Math.PI/4)},
+                    {x: r * Math.cos(5*Math.PI/4), y: r * Math.sin(5*Math.PI/4)},
+                    {x: r * Math.cos(7*Math.PI/4), y: r * Math.sin(7*Math.PI/4)}
+                ];
+            }
+
+            completedCircles.set(rSq, {
+                radius: Math.sqrt(rSq),
+                type: type,
+                hitPoints: finalPts,
+                animR: 0,
+                isActive: true,
+                shootTimer: 0 
+            });
+
+            targetHitPoints.forEach(p => allFoundPoints.add(`${p.x},${p.y}`));
+            unlockShieldButton(rSq, type);
+
+            showFeedback(type === 'red' ? `R²=${rSq} Defenses Deployed!` : `R²=${rSq} Defense Built!`);
+            
+            targetQueue.shift();
+            setTimeout(() => updateCurrentTarget(), 300);
+        }
+
+        // --- Monsters & Bullets ---
+        function spawnMonster() {
+            if (gameOver || activeWavePool.length === 0) return;
+
+            let rSq = activeWavePool[Math.floor(Math.random() * activeWavePool.length)];
+            let angle = Math.random() * Math.PI * 2;
+            
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            let maxVisibleRadiusScreenSpace = Math.max(
+                Math.hypot(0 - cx, 0 - cy),
+                Math.hypot(cw - cx, 0 - cy),
+                Math.hypot(0 - cx, ch - cy),
+                Math.hypot(cw - cx, ch - cy)
+            );
+            let spawnDist = (maxVisibleRadiusScreenSpace / scale) + 5; 
+            
+            let type = determineCircleType(rSq);
+            let waveSpeedBonus = currentWaveIndex * 0.002;
+            
+            monsters.push({
+                rSq: rSq,
+                type: type,
+                angle: angle,
+                dist: spawnDist,
+                speed: 0.02 + waveSpeedBonus + (Math.random()*0.01),
+                wobble: Math.random() * Math.PI * 2
+            });
+        }
+
+        function updateAndDrawBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                if (!monsters.includes(b.target)) {
+                    bullets.splice(i, 1); 
+                    continue;
+                }
+
+                let mx = cx + Math.cos(b.target.angle) * (b.target.dist * scale);
+                let my = cy - Math.sin(b.target.angle) * (b.target.dist * scale);
+                let angle = Math.atan2(my - b.y, mx - b.x);
+
+                b.x += Math.cos(angle) * b.speed;
+                b.y += Math.sin(angle) * b.speed;
+
+                ctx.fillStyle = b.type === 'green' ? '#34d399' : (b.type === 'blue' ? '#60a5fa' : '#fb7185');
+                ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+
+                ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(b.x - Math.cos(angle)*8, b.y - Math.sin(angle)*8); ctx.lineTo(b.x, b.y); ctx.stroke();
+
+                if (Math.hypot(mx - b.x, my - b.y) < 15) {
+                    let m = b.target;
+                    let colorStr = m.type === 'green' ? '168, 85, 247' : (m.type === 'blue' ? '249, 115, 22' : '132, 204, 22');
+                    createExplosion(mx, my, colorStr);
+                    score += 50;
+                    scoreValEl.textContent = score;
+                    monsters.splice(monsters.indexOf(b.target), 1);
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+
+        function updateAndDrawMonsters(dt) {
+            for (let i = monsters.length - 1; i >= 0; i--) {
+                let m = monsters[i];
+                m.dist -= m.speed;
+                let px = cx + Math.cos(m.angle) * (m.dist * scale);
+                let py = cy - Math.sin(m.angle) * (m.dist * scale);
+                
+                let targetDistRadius = Math.sqrt(m.rSq);
+
+                if (m.dist <= targetDistRadius) {
+                    let circleData = completedCircles.get(m.rSq);
+                    if (circleData && circleData.isActive) {
+                        let colorStr = m.type === 'green' ? '168, 85, 247' : (m.type === 'blue' ? '249, 115, 22' : '132, 204, 22');
+                        createExplosion(px, py, colorStr);
+                        score += 100;
+                        scoreValEl.textContent = score;
+                        monsters.splice(i, 1);
+                        continue;
+                    }
+                }
+
+                let physicalDistFromOrigin = m.dist * scale;
+                if (physicalDistFromOrigin <= 20) {
+                    health--; updateHealth();
+                    createExplosion(cx, cy, '244, 63, 94');
+                    monsters.splice(i, 1);
+                    continue;
+                }
+
+                drawMonster(m, px, py);
+            }
+        }
+
+        function handleTurretShooting(dt) {
+            if (currentPhase !== 'DEFEND' || gameOver) return;
+
+            let currentlyTargeted = new Set();
+            bullets.forEach(b => currentlyTargeted.add(b.target));
+
+            completedCircles.forEach((circle, rSq) => {
+                if (circle.isActive) {
+                    circle.shootTimer = (circle.shootTimer || 0) + dt;
+                    if (circle.shootTimer > 2000) { 
+                        circle.shootTimer = 0;
+                        circle.hitPoints.forEach(p => {
+                            let px = cx + p.x * scale;
+                            let py = cy - p.y * scale;
+                            let closest = null;
+                            let minDist = Infinity;
+
+                            monsters.forEach(m => {
+                                if (m.rSq === rSq && !currentlyTargeted.has(m)) {
+                                    let mx = cx + Math.cos(m.angle) * (m.dist * scale);
+                                    let my = cy - Math.sin(m.angle) * (m.dist * scale);
+                                    let d = Math.hypot(mx - px, my - py);
+                                    if (d < minDist) {
+                                        minDist = d;
+                                        closest = m;
+                                    }
+                                }
+                            });
+
+                            if (closest) {
+                                currentlyTargeted.add(closest);
+                                bullets.push({x: px, y: py, target: closest, type: circle.type, speed: 12});
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        // --- Mouse Interaction ---
+        function updateHoveredPoint(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            screenMouseX = clientX - rect.left;
+            screenMouseY = clientY - rect.top;
+
+            const gridX = Math.round((screenMouseX - cx) / scale);
+            const gridY = Math.round((cy - screenMouseY) / scale);
+            const px = cx + gridX * scale;
+            const py = cy - gridY * scale;
+            
+            const hoverHitRadius = Math.max(scale * 0.4, 10);
+            
+            if (Math.hypot(screenMouseX - px, screenMouseY - py) < hoverHitRadius) {
+                hoveredPoint = { x: gridX, y: gridY };
+                hoverInfoEl.style.opacity = 1;
+                hoverInfoEl.style.left = `${screenMouseX}px`;
+                hoverInfoEl.style.top = `${screenMouseY}px`;
+                hoverCoordsEl.innerHTML = `(${gridX}, ${gridY})<br><span class="text-[10px] text-slate-400">R²=${gridX*gridX + gridY*gridY}</span>`;
+            } else {
+                hoveredPoint = null; 
+                hoverInfoEl.style.opacity = 0;
+            }
+        }
+
+        function handleResize() {
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = cw * dpr;
+            canvas.height = ch * dpr;
+            ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            ctx.scale(dpr, dpr);
+            
+            adjustCameraForPhase();
+        }
+
+        window.addEventListener('resize', handleResize);
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomAmount = e.deltaY > 0 ? 0.9 : 1.1;
+            
+            const mouseXGrid = (screenMouseX - cx) / scale;
+            const mouseYGrid = (screenMouseY - cy) / scale;
+
+            targetScale *= zoomAmount;
+            if (targetScale < 5) targetScale = 5; 
+            if (targetScale > 150) targetScale = 150;
+
+            targetCx = screenMouseX - (mouseXGrid * targetScale);
+            targetCy = screenMouseY - (mouseYGrid * targetScale);
+        }, { passive: false });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameOver && currentPhase !== 'PI') return;
+            isDragging = true;
+            hasDragged = false; 
+            dragStartX = lastMouseX = e.clientX;
+            dragStartY = lastMouseY = e.clientY;
+            canvas.classList.replace('cursor-crosshair', 'cursor-grabbing');
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (gameOver && currentPhase !== 'PI') {
+                hoveredPoint = null;
+                hoverInfoEl.style.opacity = 0;
+                return;
+            }
+            
+            const rect = canvas.getBoundingClientRect();
+            screenMouseX = e.clientX - rect.left;
+            screenMouseY = e.clientY - rect.top;
+
+            if (isDragging) {
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+                
+                if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) {
+                    hasDragged = true;
+                    cx += dx; cy += dy; targetCx = cx; targetCy = cy;
+                    hoveredPoint = null; hoverInfoEl.style.opacity = 0;
+                }
+                
+                lastMouseX = e.clientX; lastMouseY = e.clientY;
+            } else {
+                updateHoveredPoint(e.clientX, e.clientY);
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                canvas.classList.replace('cursor-grabbing', 'cursor-crosshair');
+                
+                if (!hasDragged && !gameOver) {
+                    updateHoveredPoint(e.clientX, e.clientY); 
+                    processClick();
+                }
+            }
+        });
+
+        function processClick() {
+            if (currentPhase === 'PI') return; // Cannot build in PI phase
+            if (!hoveredPoint || currentTargetRSq === null) return;
+
+            if (targetHitPoints.length === 0) {
+                showFeedback(`R²=${currentTargetRSq} is a MINE! Click the RED Deploy button below!`, true);
+                return; 
+            }
+
+            const {x, y} = hoveredPoint;
+            const clickedRSq = x*x + y*y;
+            const ptKey = `${x},${y}`;
+
+            if (clickedRSq === currentTargetRSq) {
+                if (!foundPoints.has(ptKey)) {
+                    foundPoints.add(ptKey);
+                    
+                    let btn = buttonsMap.get(currentTargetRSq);
+                    if (btn) {
+                        btn.innerHTML = `R²=${currentTargetRSq}<br><span class="text-[10px] uppercase">${foundPoints.size}/${targetHitPoints.length} PTS</span>`;
+                    }
+
+                    errorFlashes.push({ x: cx + x*scale, y: cy - y*scale, alpha: 1, color: '250, 204, 21' }); 
+                    
+                    if (foundPoints.size === targetHitPoints.length) {
+                        completeCurrentTarget();
+                    }
+                }
+            } else {
+                if (!allFoundPoints.has(ptKey)) {
+                    if (clickedRSq > currentTargetRSq && targetQueue.includes(clickedRSq)) {
+                        showFeedback(`Must build R²=${currentTargetRSq} first!`, true);
+                    } else {
+                        showFeedback(`Wrong Point! (That's R²=${clickedRSq})`, true);
+                    }
+                    errorFlashes.push({ x: cx + x*scale, y: cy - y*scale, alpha: 1, color: '244, 63, 94' }); 
+                }
+            }
+        }
+
+        // --- PATTERN (PI) PHASE LOGIC ---
+        function setColumnHighlight(d, active) {
+            let header = document.getElementById(`col-header-${d}`);
+            if (header) {
+                if (active) header.classList.add('bg-slate-700/50', 'shadow-[inset_0_0_10px_rgba(34,211,238,0.2)]');
+                else header.classList.remove('bg-slate-700/50', 'shadow-[inset_0_0_10px_rgba(34,211,238,0.2)]');
+            }
+            for (let i = 1; i <= piMaxR; i++) {
+                let cell = document.getElementById(`cell-${i}-${d}`);
+                if (cell) {
+                    if (active) {
+                        cell.classList.add('bg-slate-700/50');
+                        if (cell.innerText === '?') {
+                            cell.classList.remove('text-slate-600/30');
+                            cell.classList.add('text-cyan-400', 'animate-pulse');
+                        } else {
+                            cell.classList.add('drop-shadow-[0_0_5px_currentColor]');
+                        }
+                    } else {
+                        cell.classList.remove('bg-slate-700/50');
+                        if (cell.innerText === '?') {
+                            cell.classList.remove('text-cyan-400', 'animate-pulse');
+                            cell.classList.add('text-slate-600/30');
+                        } else {
+                            cell.classList.remove('drop-shadow-[0_0_5px_currentColor]');
+                        }
+                    }
+                }
+            }
+        }
+
+        function startPatternPhase() {
+            topUI.style.display = "none";
+            bottomUI.style.display = "none";
+            hoveredDivisor = 0;
+            piEliminations = [];
+            piFloatingTexts = [];
+            
+            void cont.offsetHeight;
+            
+            let maxR = completedCircles.size > 0 ? Math.max(...Array.from(completedCircles.keys())) : 0;
+            piMaxR = Math.min(Math.max(maxR, 4), 14); 
+            
+            adjustCameraForPhase();
+
+            monsters = []; bullets = []; particles = []; errorFlashes = [];
+            
+            piPhaseContainer.classList.remove('hidden');
+            piPhaseContainer.classList.add('flex');
+            setTimeout(() => {
+                piPhaseContainer.classList.remove('translate-y-full', 'md:translate-x-full', 'md:translate-y-0');
+            }, 50);
+            
+            piMessage.classList.add('hidden');
+            piMessage.classList.remove('flex');
+            piInteractiveArea.classList.remove('hidden');
+            piInteractiveArea.classList.add('flex');
+
+            let expectedSequence = [];
+            let currentSlotIndex = 0;
+
+            let gridHTML = `<div class="grid gap-x-1 gap-y-1 items-center font-mono text-sm md:text-base text-center pb-2 min-w-max" style="grid-template-columns: 60px repeat(${piMaxR}, minmax(36px, 1fr));">`;
+            
+            gridHTML += `<div class="font-bold text-slate-400 border-b border-slate-600 pb-2 text-[10px] md:text-xs leading-tight tracking-wider">Divisor<br>&rarr;<br>R² &darr;</div>`;
+            for (let d = 1; d <= piMaxR; d++) {
+                expectedSequence.push(d);
+                gridHTML += `<div id="col-header-${d}" class="flex justify-center border-b border-slate-600 pb-2 cursor-pointer transition-all duration-300 rounded-t-lg"><div id="slot-${d}" class="w-8 h-8 border-2 border-dashed border-slate-500 rounded bg-slate-900/50 flex items-center justify-center transition-all duration-300 pointer-events-none"></div></div>`;
+            }
+
+            for (let i = 1; i <= piMaxR; i++) {
+                gridHTML += `<div class="text-right pr-2 font-bold text-slate-300 py-1 border-r border-slate-600">${i}</div>`;
+                for (let d = 1; d <= piMaxR; d++) {
+                    if (i % d === 0) {
+                        gridHTML += `<div id="cell-${i}-${d}" class="transition-all duration-300 font-bold text-base md:text-lg cursor-pointer rounded flex items-center justify-center text-slate-600/30">?</div>`;
+                    } else {
+                        gridHTML += `<div></div>`; 
+                    }
+                }
+            }
+            gridHTML += `</div>`;
+            piGridContainer.innerHTML = gridHTML;
+            
+            for (let d = 1; d <= piMaxR; d++) {
+                let header = document.getElementById(`col-header-${d}`);
+                if(header) {
+                    header.addEventListener('pointerenter', () => { hoveredDivisor = d; setColumnHighlight(d, true); });
+                    header.addEventListener('pointerleave', () => { hoveredDivisor = 0; setColumnHighlight(d, false); });
+                }
+                for (let i = 1; i <= piMaxR; i++) {
+                    let cell = document.getElementById(`cell-${i}-${d}`);
+                    if(cell) {
+                        cell.addEventListener('pointerenter', () => { hoveredDivisor = d; setColumnHighlight(d, true); });
+                        cell.addEventListener('pointerleave', () => { hoveredDivisor = 0; setColumnHighlight(d, false); });
+                    }
+                }
+            }
+
+            piBlocksContainer.innerHTML = '';
+            let bankBlocks = [];
+            for (let d = 1; d <= piMaxR; d++) bankBlocks.push(d);
+            bankBlocks.sort(() => Math.random() - 0.5);
+
+            bankBlocks.forEach(d => {
+                let block = document.createElement('button');
+                block.className = 'bg-slate-800 border-2 border-slate-600 text-yellow-200 italic font-serif py-1.5 px-3 rounded-lg hover:bg-slate-700 transition-transform active:scale-95 shadow-md focus:outline-none m-1';
+                block.innerHTML = `&chi;(${d})`;
+                
+                block.addEventListener('pointerenter', () => { hoveredDivisor = d; setColumnHighlight(d, true); });
+                block.addEventListener('pointerleave', () => { hoveredDivisor = 0; setColumnHighlight(d, false); });
+
+                block.onclick = () => {
+                    let expectedD = expectedSequence[currentSlotIndex];
+                    if (d === expectedD) {
+                        let slot = document.getElementById(`slot-${d}`);
+                        let chi = (d % 2 === 0) ? 0 : (d % 4 === 1 ? 1 : -1);
+                        let sign = chi === 0 ? '0' : (chi > 0 ? '+1' : '−1');
+                        let colorClass = chi > 0 ? 'text-emerald-400' : (chi < 0 ? 'text-rose-400' : 'text-slate-500');
+                        
+                        // Text Animation!
+                        let msg = chi === 0 ? "No Effect" : (chi > 0 ? "Point Established" : "Point Eliminated");
+                        let msgColor = chi === 0 ? "148, 163, 184" : (chi > 0 ? "52, 211, 153" : "244, 63, 94");
+                        piFloatingTexts.push({ text: msg, yOffset: 0, life: 90, color: msgColor });
+
+                        slot.innerHTML = `<span class="${colorClass} font-bold text-lg md:text-xl animate-pulse">${sign}</span>`;
+                        slot.className = 'flex items-center justify-center bg-slate-800 rounded shadow-inner w-8 h-8 pointer-events-none'; 
+                        block.style.display = 'none';
+                        
+                        hoveredDivisor = 0; 
+                        setColumnHighlight(d, false);
+                        
+                        for (let i = 1; i <= piMaxR; i++) {
+                            if (i % d === 0) {
+                                let cell = document.getElementById(`cell-${i}-${d}`);
+                                if (cell) {
+                                    cell.innerHTML = sign;
+                                    cell.className = `transition-all duration-500 font-bold text-base md:text-lg flex items-center justify-center rounded cursor-pointer ${colorClass}`;
+                                }
+                            }
+                        }
+
+                        // Check for Point Elimination Animations
+                        for (let rSq = 1; rSq <= piMaxR; rSq++) {
+                            if (rSq % d === 0) {
+                                let oldSum = 0;
+                                answeredDivisors.forEach(ans => { if (rSq % ans.d === 0) oldSum += ans.chi; });
+                                if (oldSum > 0 && oldSum + chi <= 0) {
+                                    let pts = getDisplayPts(rSq);
+                                    pts.forEach(p => {
+                                        piEliminations.push({x: p.x, y: p.y, timer: 1.0});
+                                    });
+                                }
+                            }
+                        }
+
+                        answeredDivisors.push({ d: d, chi: chi });
+                        flashCanvasPattern(d, chi, piMaxR);
+
+                        currentSlotIndex++;
+                        
+                        if (currentSlotIndex === expectedSequence.length) {
+                            piInteractiveArea.classList.add('hidden');
+                            piInteractiveArea.classList.remove('flex');
+                            
+                            setTimeout(() => {
+                                document.getElementById('matrix-panel').classList.add('opacity-40'); 
+                                piMessage.classList.remove('hidden');
+                                piMessage.classList.add('flex');
+                                piMessage.scrollIntoView({ behavior: "smooth", block: "end" });
+                                runPiCalculation(piMaxR); 
+                            }, 1000); 
+                        } else {
+                            highlightNextSlot(expectedSequence[currentSlotIndex]);
+                        }
+                    } else {
+                        block.classList.add('animate-shake', 'border-rose-500', 'text-rose-400');
+                        setTimeout(() => {
+                            block.classList.remove('animate-shake', 'border-rose-500', 'text-rose-400');
+                        }, 400);
+                    }
+                };
+                piBlocksContainer.appendChild(block);
+            });
+
+            function highlightNextSlot(nextD) {
+                for(let i=1; i<=piMaxR; i++) {
+                    let s = document.getElementById(`slot-${i}`);
+                    if(s && s.classList.contains('border-dashed')) {
+                        s.classList.remove('border-cyan-400', 'shadow-[0_0_8px_#22d3ee]', 'bg-cyan-900/40');
+                        s.classList.add('border-slate-500', 'bg-slate-900/50');
+                    }
+                }
+                let next = document.getElementById(`slot-${nextD}`);
+                if(next) {
+                    next.classList.remove('border-slate-500', 'bg-slate-900/50');
+                    next.classList.add('border-cyan-400', 'shadow-[0_0_8px_#22d3ee]', 'bg-cyan-900/40');
+                    setTimeout(() => {
+                        next.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+                    }, 50);
+                }
+            }
+            highlightNextSlot(1);
+        }
+
+        function flashCanvasPattern(d, chi, maxN) {
+            piPhaseContainer.classList.add('phase-reveal');
+            setTimeout(() => {
+                piPhaseContainer.classList.remove('phase-reveal');
+            }, 1200);
+
+            highlightedRings = [];
+            for (let k = 1; k * d <= maxN; k++) {
+                highlightedRings.push(k * d);
+            }
+            
+            flashChiColor = chi === 0 ? '148, 163, 184' : (chi > 0 ? '52, 211, 153' : '244, 63, 94');
+            flashAlpha = 1.0;
+        }
+
+        function runPiCalculation(N) {
+            let calcDiv = document.getElementById('pi-calculation');
+            calcDiv.innerHTML = '';
+            
+            let sum = 0;
+            for (let d = 1; d <= N; d++) {
+                let chi = (d % 2 === 0) ? 0 : (d % 4 === 1 ? 1 : -1);
+                let count = Math.floor(N / d);
+                sum += chi * count;
+            }
+            let points = 1 + 4 * sum;
+            let piApprox = (points / N).toFixed(4);
+
+            function f(sign, bot) {
+                return `<div class="inline-flex items-center align-middle mx-1 text-cyan-300">
+                    <span class="mr-1">${sign}</span>
+                    <div class="flex flex-col items-center text-[0.65rem] md:text-xs leading-none">
+                        <span class="border-b border-current w-full text-center pb-[1px]">1</span>
+                        <span class="pt-[1px]">${bot}</span>
+                    </div>
+                </div>`;
+            }
+
+            let steps = [
+                `> Points on ring n: <span class="text-emerald-400">r₂(n) = 4 &times; &sum; &chi;(d)</span> for all divisors d|n`,
+                `> Total points in circle: <span class="text-emerald-400">N(R&sup2;) = 1 + &sum; r₂(n)</span>`,
+                `> Grouping matrix columns counts each <span class="text-yellow-200 italic">&chi;(d)</span> exactly &lfloor;R&sup2;/d&rfloor; times:`,
+                `> <span class="text-yellow-200">N(R&sup2;) = 1 + 4 &times; &sum; &chi;(d)&lfloor;R&sup2;/d&rfloor;</span>`,
+                `> Area of Circle = &pi;R&sup2; &approx; N(R&sup2;)  &rArr;  &pi; &approx; N(R&sup2;) / R&sup2;`,
+                `> As R&sup2; &rarr; &infin;, the ratio <span class="text-slate-400">&lfloor;R&sup2;/d&rfloor; / R&sup2;</span> approaches <span class="text-slate-400">1/d</span>`,
+                `> &pi; = 4 &times; [ &chi;(1)/1 + &chi;(2)/2 + &chi;(3)/3 + &chi;(4)/4 + ... ]`,
+                `> Substituting your assigned <span class="text-yellow-200 italic">&chi;</span> column values:`,
+                `> &pi; = 4 &times; [ 1/1 + 0/2 &minus; 1/3 + 0/4 + 1/5 + 0/6 &minus; 1/7 + ... ]`,
+                `<div class="flex items-center flex-wrap mt-3 font-bold text-lg md:text-xl text-cyan-300">
+                    <span>&pi; = 4 &times; ( 1</span>
+                    ${f('&minus;', '3')}
+                    ${f('+', '5')}
+                    ${f('&minus;', '7')}
+                    ${f('+', '9')}
+                    <span class="ml-2">... )</span>
+                </div>`,
+                `<div class="mt-2 text-yellow-300 font-bold text-lg md:text-xl">> Your R&sup2;=${N} Approximation: ${piApprox}</div>`
+            ];
+
+            let rebuildBtn = document.getElementById('rebuild-btn');
+            rebuildBtn.classList.add('hidden');
+
+            steps.forEach((step, idx) => {
+                setTimeout(() => {
+                    let p = document.createElement('div');
+                    p.innerHTML = step;
+                    p.className = "opacity-0 transition-opacity duration-500 mb-2";
+                    calcDiv.appendChild(p);
+                    void p.offsetWidth; // reflow
+                    p.classList.remove('opacity-0');
+                    calcDiv.scrollTop = calcDiv.scrollHeight;
+
+                    if (idx === steps.length - 1) {
+                        setTimeout(() => {
+                            rebuildBtn.classList.remove('hidden');
+                            rebuildBtn.classList.add('animate-bounce');
+                            setTimeout(() => rebuildBtn.classList.remove('animate-bounce'), 1000);
+                            calcDiv.scrollTop = calcDiv.scrollHeight;
+                        }, 1000);
+                    }
+                }, 1200 * idx); 
+            });
+        }
+
+        // --- Rendering Core ---
+        function drawGrid() {
+            ctx.lineWidth = 1; ctx.strokeStyle = '#1e293b'; ctx.beginPath();
+            
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            
+            let startX = Math.floor(-cx / scale) - 1; 
+            let endX = Math.ceil((cw - cx) / scale) + 1;
+            let startY = Math.floor((cy - ch) / scale) - 1; 
+            let endY = Math.ceil(cy / scale) + 1;
+
+            for(let i = startX; i <= endX; i++) {
+                const lineX = cx + i * scale; ctx.moveTo(lineX, 0); ctx.lineTo(lineX, ch);
+            }
+            for(let i = startY; i <= endY; i++) {
+                const lineY = cy - i * scale; ctx.moveTo(0, lineY); ctx.lineTo(cw, lineY);
+            }
+            ctx.stroke();
+
+            ctx.lineWidth = 2; ctx.strokeStyle = '#475569'; ctx.beginPath();
+            ctx.moveTo(0, cy); ctx.lineTo(cw, cy); 
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, ch); ctx.stroke();
+
+            ctx.fillStyle = '#64748b'; ctx.font = '11px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+            let step = scale < 10 ? 20 : (scale < 15 ? 10 : (scale < 30 ? 5 : (scale < 60 ? 2 : 1)));
+            
+            for(let i = startX; i <= endX; i++) {
+                 if (i !== 0 && i % step === 0) ctx.fillText(i, cx + i * scale, cy + 6);
+            }
+            ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+            for(let i = startY; i <= endY; i++) {
+                 if (i !== 0 && i % step === 0) ctx.fillText(i, cx - 6, cy - i * scale);
+            }
+        }
+
+        function drawCastle() {
+            ctx.save(); ctx.translate(cx, cy);
+            let pulse = Math.sin(Date.now() / 300) * 5;
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
+            ctx.beginPath(); ctx.arc(0, 0, 20 + pulse, 0, Math.PI*2); ctx.fill();
+
+            ctx.scale(0.8, 0.8);
+            
+            ctx.fillStyle = '#38bdf8'; ctx.beginPath();
+            ctx.moveTo(-15, 15); ctx.lineTo(-15, -5); ctx.lineTo(-10, -5); ctx.lineTo(-10, -15);
+            ctx.lineTo(-5, -15); ctx.lineTo(-5, -5); ctx.lineTo(5, -5); ctx.lineTo(5, -15); 
+            ctx.lineTo(10, -15); ctx.lineTo(10, -5); ctx.lineTo(15, -5); ctx.lineTo(15, 15);
+            ctx.closePath(); ctx.fill();
+            
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(-5, 5, 10, 10);
+            ctx.restore();
+        }
+
+        function drawPoints() {
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            
+            let startX = Math.floor(-cx / scale) - 1; 
+            let endX = Math.ceil((cw - cx) / scale) + 1;
+            let startY = Math.floor((cy - ch) / scale) - 1; 
+            let endY = Math.ceil(cy / scale) + 1;
+
+            ctx.fillStyle = '#334155'; ctx.beginPath();
+            for(let x = startX; x <= endX; x++) {
+                for(let y = startY; y <= endY; y++) {
+                    const ptKey = `${x},${y}`;
+                    if (!allFoundPoints.has(ptKey) && !foundPoints.has(ptKey)) {
+                        let isHovered = hoveredPoint && hoveredPoint.x === x && hoveredPoint.y === y;
+                        if (!isHovered) {
+                            const px = cx + x * scale; const py = cy - y * scale;
+                            if (scale < 10) ctx.rect(px - 1, py - 1, 2, 2); 
+                            else { ctx.moveTo(px + 2, py); ctx.arc(px, py, 2, 0, Math.PI * 2); }
+                        }
+                    }
+                }
+            }
+            ctx.fill();
+
+            for(let x = startX; x <= endX; x++) {
+                for(let y = startY; y <= endY; y++) {
+                    const px = cx + x * scale; const py = cy - y * scale;
+                    const ptKey = `${x},${y}`;
+                    let isHovered = hoveredPoint && hoveredPoint.x === x && hoveredPoint.y === y;
+                    
+                    if (foundPoints.has(ptKey)) {
+                        ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
+                        ctx.strokeStyle = 'rgba(250, 204, 21, 0.5)'; ctx.lineWidth = 2; ctx.stroke();
+                    } else if (allFoundPoints.has(ptKey)) {
+                        ctx.fillStyle = '#475569'; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+                    } else if (isHovered) {
+                        ctx.fillStyle = '#94a3b8'; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawCircles() {
+            for (let [rSq, circle] of completedCircles) {
+                if (circle.animR < circle.radius) circle.animR += circle.radius * 0.1;
+                if (circle.animR > circle.radius) circle.animR = circle.radius;
+                
+                let strokeCol, fillCol;
+                if (circle.type === 'green') { strokeCol = '#34d399'; fillCol = 'rgba(52, 211, 153, 0.05)'; } 
+                else if (circle.type === 'blue') { strokeCol = '#60a5fa'; fillCol = 'rgba(96, 165, 250, 0.05)'; } 
+                else if (circle.type === 'red') { strokeCol = '#fb7185'; fillCol = 'rgba(251, 113, 133, 0.02)'; }
+
+                ctx.beginPath(); ctx.arc(cx, cy, circle.animR * scale, 0, Math.PI * 2);
+                
+                if (circle.isActive) {
+                    ctx.strokeStyle = strokeCol; ctx.lineWidth = 2; ctx.stroke();
+                    if (circle.type !== 'red') { ctx.fillStyle = fillCol; ctx.fill(); }
+
+                    if (circle.animR === circle.radius) {
+                        ctx.lineWidth = 3;
+                        for (let pt of circle.hitPoints) {
+                            let px = cx + pt.x * scale;
+                            let py = cy - pt.y * scale;
+
+                            let angle = Math.atan2(-pt.y, pt.x);
+                            ctx.beginPath();
+                            ctx.moveTo(px, py);
+                            ctx.lineTo(px + Math.cos(angle)*10, py + Math.sin(angle)*10);
+                            ctx.strokeStyle = strokeCol;
+                            ctx.stroke();
+
+                            ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2);
+                            ctx.fillStyle = strokeCol; ctx.fill();
+                        }
+                    }
+                } else {
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeStyle = strokeCol.replace('rgb', 'rgba').replace(')', ', 0.3)');
+                    ctx.lineWidth = 1.5; ctx.stroke();
+                    ctx.setLineDash([]); 
+                }
+            }
+        }
+
+        function drawMonster(m, px, py) {
+            ctx.save(); ctx.translate(px, py);
+            
+            m.wobble += 0.15; let yOffset = Math.sin(m.wobble) * 2; ctx.translate(0, yOffset);
+
+            let bodyCol, eyeCol, strokeCol;
+            if (m.type === 'green') { bodyCol = '#a855f7'; strokeCol = '#7e22ce'; eyeCol = '#fff'; } 
+            else if (m.type === 'blue') { bodyCol = '#f97316'; strokeCol = '#c2410c'; eyeCol = '#fff'; } 
+            else if (m.type === 'red') { bodyCol = '#84cc16'; strokeCol = '#4d7c0f'; eyeCol = '#ecfccb'; ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(132, 204, 22, 0.6)'; }
+
+            ctx.fillStyle = bodyCol; ctx.beginPath(); ctx.roundRect(-12, -12, 24, 24, 6); ctx.fill();
+            ctx.strokeStyle = strokeCol; ctx.lineWidth = 2; ctx.stroke(); ctx.shadowBlur = 0;
+
+            ctx.fillStyle = eyeCol;
+            if (m.type === 'green') {
+                ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(-2, -2); ctx.lineTo(-8, 0); ctx.fill(); 
+                ctx.beginPath(); ctx.moveTo(8, -6); ctx.lineTo(2, -2); ctx.lineTo(8, 0); ctx.fill();   
+            } 
+            else if (m.type === 'blue') { ctx.fillRect(-8, -5, 5, 5); ctx.fillRect(3, -5, 5, 5); } 
+            else if (m.type === 'red') {
+                ctx.beginPath(); ctx.arc(-5, -3, 3, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = bodyCol; ctx.beginPath(); ctx.arc(-5, -3, 1.5, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = eyeCol; ctx.beginPath(); ctx.arc(5, -3, 3, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = bodyCol; ctx.beginPath(); ctx.arc(5, -3, 1.5, 0, Math.PI*2); ctx.fill();
+            }
+
+            let textCol = (m.type === 'red') ? '#064e3b' : '#fff'; 
+            ctx.fillStyle = textCol; ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.rSq, 0, 18);
+            
+            ctx.restore();
+        }
+
+        // --- Specialized PI Phase Drawer ---
+        function drawPiPhaseVisuals() {
+            for (let rSq = 1; rSq <= piMaxR; rSq++) {
+                let sumChi = 0;
+                let hasAnswered = false;
+                for (let i = 0; i < answeredDivisors.length; i++) {
+                    if (rSq % answeredDivisors[i].d === 0) {
+                        sumChi += answeredDivisors[i].chi;
+                        hasAnswered = true;
+                    }
+                }
+                
+                let isHovered = (hoveredDivisor > 0 && rSq % hoveredDivisor === 0);
+                let hoverChi = 0;
+                if (isHovered) {
+                    hoverChi = (hoveredDivisor % 2 === 0) ? 0 : (hoveredDivisor % 4 === 1 ? 1 : -1);
+                }
+
+                let currentActiveChi = sumChi + hoverChi;
+                
+                let strokeColor = '#1e293b'; 
+                let fillColor = '#334155';
+                let lineWidth = 1;
+                let ptRadius = 2;
+
+                if (isHovered) {
+                    strokeColor = hoverChi === 0 ? '#94a3b8' : (hoverChi > 0 ? '#34d399' : '#fb7185'); 
+                    fillColor = hoverChi === 0 ? '#cbd5e1' : (hoverChi > 0 ? '#10b981' : '#f43f5e'); 
+                    lineWidth = 3;
+                    ptRadius = 4;
+                } else if (hasAnswered) {
+                    if (sumChi > 0) {
+                        strokeColor = '#34d399'; 
+                        fillColor = '#10b981';
+                        lineWidth = 1.5 + sumChi; 
+                        ptRadius = 2 + sumChi * 1.5; 
+                    } else {
+                        strokeColor = '#fb7185'; 
+                        fillColor = '#f43f5e';
+                        lineWidth = 2;
+                        ptRadius = 3;
+                    }
+                }
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, Math.sqrt(rSq) * scale, 0, 6.28);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                
+                if (isHovered) {
+                    ctx.shadowColor = strokeColor;
+                    ctx.shadowBlur = 10;
+                }
+                ctx.stroke();
+                if (isHovered) ctx.shadowBlur = 0; 
+
+                if (currentActiveChi > 0) {
+                    let pts = getDisplayPts(rSq);
+                    ctx.fillStyle = fillColor;
+                    if (isHovered) {
+                        ctx.shadowColor = strokeColor;
+                        ctx.shadowBlur = 10;
+                    }
+                    pts.forEach(p => {
+                        ctx.beginPath();
+                        ctx.arc(cx + p.x * scale, cy - p.y * scale, ptRadius, 0, 6.28);
+                        ctx.fill();
+                    });
+                    if (isHovered) ctx.shadowBlur = 0; 
+                }
+            }
+
+            if (flashAlpha > 0) {
+                flashAlpha -= 0.015;
+                ctx.save(); ctx.translate(cx, cy);
+                highlightedRings.forEach(rSq => {
+                    let pts = getDisplayPts(rSq);
+                    ctx.beginPath(); ctx.arc(0, 0, Math.sqrt(rSq)*scale, 0, 6.28);
+                    ctx.strokeStyle = `rgba(${flashChiColor}, ${flashAlpha * 0.6})`; 
+                    ctx.lineWidth = 3 + flashAlpha * 2; 
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = `rgba(${flashChiColor}, ${flashAlpha})`;
+                    pts.forEach(p => { 
+                        ctx.beginPath(); 
+                        ctx.arc(p.x*scale, -p.y*scale, 6 + flashAlpha*4, 0, 6.28); 
+                        ctx.fill(); 
+                    });
+                });
+                ctx.restore();
+            }
+
+            for (let i = piEliminations.length - 1; i >= 0; i--) {
+                let el = piEliminations[i];
+                el.timer -= 0.025; 
+                if (el.timer <= 0) {
+                    piEliminations.splice(i, 1);
+                    continue;
+                }
+                
+                let px = cx + el.x * scale;
+                let py = cy - el.y * scale;
+                let alpha = el.timer;
+                let size = (1 - el.timer) * 20 + 5; 
+                
+                ctx.strokeStyle = `rgba(244, 63, 94, ${alpha})`;
+                ctx.lineWidth = 3;
+                
+                ctx.beginPath();
+                ctx.moveTo(px - size, py - size); ctx.lineTo(px + size, py + size);
+                ctx.moveTo(px - size, py + size); ctx.lineTo(px + size, py - size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(px, py, size, 0, 6.28);
+                ctx.fillStyle = `rgba(244, 63, 94, ${alpha * 0.4})`;
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            for (let i = piFloatingTexts.length - 1; i >= 0; i--) {
+                let ft = piFloatingTexts[i];
+                ft.life -= 1;
+                ft.yOffset += 0.8;
+                let alpha = Math.min(1, ft.life / 20); 
+                
+                ctx.save();
+                ctx.font = 'bold 24px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = `rgba(11, 17, 32, ${alpha})`;
+                ctx.strokeText(ft.text, cx, cy - 60 - ft.yOffset);
+                
+                ctx.fillStyle = `rgba(${ft.color}, ${alpha})`;
+                ctx.shadowColor = `rgba(${ft.color}, ${alpha})`;
+                ctx.shadowBlur = 15;
+                ctx.fillText(ft.text, cx, cy - 60 - ft.yOffset);
+                ctx.restore();
+                
+                if (ft.life <= 0) piFloatingTexts.splice(i, 1);
+            }
+        }
+
+        function initGame() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            health = 5; score = 0; gameOver = false;
+            
+            completedCircles = new Map();
+            targetQueue = [];
+            activeWavePool = [];
+            foundPoints = new Set();
+            allFoundPoints = new Set();
+            buttonsMap = new Map();
+            
+            monsters = []; particles = []; errorFlashes = []; bullets = [];
+            waveTimer = 0;
+            
+            // Clear PI variables
+            piMaxR = 0; answeredDivisors = []; highlightedRings = []; flashAlpha = 0; hoveredDivisor = 0;
+            piEliminations = []; piFloatingTexts = [];
+
+            currentWaveIndex = -1;
+            currentPhase = 'NONE';
+            phaseTimeLeft = 0;
+            lastTime = null;
+
+            scoreValEl.textContent = 0;
+            gameOverScreen.style.display = 'none';
+            topUI.style.opacity = "1";
+            bottomUI.style.display = "flex";
+            piPhaseContainer.classList.add('translate-y-full', 'md:translate-x-full', 'md:translate-y-0');
+            setTimeout(() => {
+                piPhaseContainer.classList.add('hidden');
+                piPhaseContainer.classList.remove('flex');
+            }, 700);
+            updateHealth();
+
+            shieldFlex.innerHTML = '';
+
+            handleResize(); 
+
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+            targetScale = scale = Math.max(5, Math.min(cw, ch) / 2 / 10);
+            targetCx = cx = cw / 2;
+            targetCy = cy = ch / 2;
+
+            switchPhase(); 
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            let dt = timestamp - lastTime;
+            lastTime = timestamp;
+            
+            if (dt > 1000) dt = 16;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!gameOver) {
+                phaseTimeLeft -= dt / 1000;
+                if (phaseTimeLeft <= 0) {
+                    switchPhase();
+                }
+                phaseTimer.textContent = Math.max(0, phaseTimeLeft).toFixed(1) + "s";
+
+                if (currentPhase === 'DEFEND') {
+                    waveTimer++;
+                    let spawnRate = Math.max(40, 150 - (currentWaveIndex * 15));
+                    if (waveTimer > spawnRate) { 
+                        spawnMonster();
+                        waveTimer = 0;
+                    }
+                }
+            }
+
+            handleTurretShooting(dt);
+            updateCamera();
+            
+            drawGrid();
+            drawCastle(); 
+            
+            if (currentPhase === 'PI') {
+                drawPiPhaseVisuals();
+            } else {
+                drawCircles();
+                drawPoints();
+                if (!gameOver) {
+                    updateAndDrawMonsters(dt);
+                    updateAndDrawBullets();
+                }
+            }
+            
+            drawParticles();
+            drawFlashes();
+            
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        playAgainBtn.addEventListener('click', initGame);
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>
