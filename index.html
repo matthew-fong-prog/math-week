@@ -906,7 +906,7 @@
             if (container) void container.offsetHeight; 
             
             let maxR = completedCircles.size > 0 ? Math.max(...Array.from(completedCircles.keys())) : 0;
-            piMaxR = Math.min(Math.max(maxR, 4), 14); 
+            piMaxR = Math.max(maxR, 4); 
             
             adjustCameraForPhase();
 
