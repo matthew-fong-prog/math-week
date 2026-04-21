@@ -921,27 +921,30 @@
                     
                     if (phase === 'DEFEND' && ++waveTimer > Math.max(20, 100 - waveIdx*15)) {
                         waveTimer = 0;
-                        let r = activePool[Math.floor(Math.random()*activePool.length)];
-                        let dPts = getDisplayPts(r);
-                        let pt = dPts[Math.floor(Math.random()*dPts.length)];
-                        
-                        let maxVisibleRadiusScreenSpace = Math.max(
-                            Math.hypot(0 - cx, 0 - cy),
-                            Math.hypot(canvas.width - cx, 0 - cy),
-                            Math.hypot(0 - cx, canvas.height - cy),
-                            Math.hypot(canvas.width - cx, canvas.height - cy)
-                        );
-                        
-                        let spawnDist = Math.max(Math.sqrt(r) + 5, (maxVisibleRadiusScreenSpace / scale) + 5);
-                        
-                        monsters.push({
-                            rSq: r, 
-                            a: Math.atan2(pt.y, pt.x), 
-                            dist: spawnDist, 
-                            speed: 0.04 + waveIdx*0.005, 
-                            w: Math.random()*6.28, 
-                            t: getCircleType(r)
-                        });
+                        let validPool = activePool.filter(r => getCircleType(r) !== 'red');
+                        if (validPool.length > 0) {
+                            let r = validPool[Math.floor(Math.random()*validPool.length)];
+                            let dPts = getDisplayPts(r);
+                            let pt = dPts[Math.floor(Math.random()*dPts.length)];
+                            
+                            let maxVisibleRadiusScreenSpace = Math.max(
+                                Math.hypot(0 - cx, 0 - cy),
+                                Math.hypot(canvas.width - cx, 0 - cy),
+                                Math.hypot(0 - cx, canvas.height - cy),
+                                Math.hypot(canvas.width - cx, canvas.height - cy)
+                            );
+                            
+                            let spawnDist = Math.max(Math.sqrt(r) + 5, (maxVisibleRadiusScreenSpace / scale) + 5);
+                            
+                            monsters.push({
+                                rSq: r, 
+                                a: Math.atan2(pt.y, pt.x), 
+                                dist: spawnDist, 
+                                speed: 0.04 + waveIdx*0.005, 
+                                w: Math.random()*6.28, 
+                                t: getCircleType(r)
+                            });
+                        }
                     }
 
                     if (phase === 'DEFEND') {
@@ -949,7 +952,7 @@
                         bullets.forEach(b => currentlyTargeted.add(b.target));
 
                         completedCircles.forEach((c, rSq) => {
-                            if (c.active) {
+                            if (c.active && c.type !== 'red') {
                                 c.shootTimer = (c.shootTimer || 0) + dt;
                                 if (c.shootTimer > 2000) { 
                                     c.shootTimer = 0;
@@ -1088,7 +1091,7 @@
                     }
                     
                 } else {
-                    if (phase === 'BUILD' && !isHardMode && currentRSq !== null) {
+                    if (phase === 'BUILD' && !isHardMode && currentRSq !== null && getCircleType(currentRSq) !== 'red') {
                         ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.1, Math.sqrt(currentRSq)*scale), 0, 6.28);
                         ctx.strokeStyle = 'rgba(34, 211, 238, 0.4)'; ctx.setLineDash([5,5]); ctx.lineWidth=2; ctx.stroke(); ctx.setLineDash([]);
                     }
@@ -1101,9 +1104,10 @@
                         ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.1, c.aR*scale), 0, 6.28);
                         ctx.strokeStyle = c.type==='green'?'#34d399':(c.type==='blue'?'#60a5fa':'#fb7185'); 
                         
-                        if(!c.active) { 
-                            ctx.setLineDash([5,5]); ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]); 
-                            return; 
+                        if(!c.active || c.type === 'red') { 
+                            ctx.setLineDash([5,5]); ctx.lineWidth= c.active ? 2 : 1; ctx.stroke(); ctx.setLineDash([]); 
+                            if (c.type === 'red') return;
+                            if (!c.active) return; 
                         }
                         
                         ctx.lineWidth = 2; ctx.stroke();
