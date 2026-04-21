@@ -348,15 +348,10 @@
             let rSq = currentRSq; 
             let type = getCircleType(rSq);
             
-            let finalPts = [...targetPts];
-            if (type === 'red') {
-                let r = Math.sqrt(rSq);
-                finalPts = [
-                    {x: r * Math.cos(Math.PI/4), y: r * Math.sin(Math.PI/4)},
-                    {x: r * Math.cos(3*Math.PI/4), y: r * Math.sin(3*Math.PI/4)},
-                    {x: r * Math.cos(5*Math.PI/4), y: r * Math.sin(5*Math.PI/4)},
-                    {x: r * Math.cos(7*Math.PI/4), y: r * Math.sin(7*Math.PI/4)}
-                ];
+            // Empty array for red rings - no points and no guns
+            let finalPts = []; 
+            if (type !== 'red') {
+                finalPts = [...targetPts];
             }
 
             completedCircles.set(rSq, {r: Math.sqrt(rSq), type: type, pts: finalPts, aR: 0, active: false, shootTimer: 0});
