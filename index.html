@@ -696,6 +696,7 @@
             
             if (r2 === currentRSq && !foundPts.has(key)) {
                 foundPts.add(key);
+                score++; updateUI();
                 buttonsMap.get(currentRSq).innerHTML = `R²=${currentRSq}<br><span class="text-[10px]">${foundPts.size}/${targetPts.length} PTS</span>`;
                 flashes.push({x: cx+hPt.x*scale, y: cy-hPt.y*scale, a: 1, c: '250,204,21'});
                 if (foundPts.size === targetPts.length) finishTarget();
@@ -1119,7 +1120,6 @@
 
                     if (Math.hypot(mx - b.x, my - b.y) < 15) {
                         explode(mx, my, b.target.t==='green'?'168,85,247':(b.target.t==='blue'?'249,115,22':'132,204,22'));
-                        score += 50; updateUI();
                         monsters.splice(monsters.indexOf(b.target), 1);
                         bullets.splice(i, 1);
                     }
@@ -1140,7 +1140,7 @@
                     
                     if (!gameOver && m.dist <= Math.sqrt(m.rSq) && completedCircles.get(m.rSq)?.active) {
                         explode(px, py, m.t==='green'?'168,85,247':(m.t==='blue'?'249,115,22':'132,204,22'));
-                        score += 100; updateUI(); monsters.splice(i, 1); continue;
+                        monsters.splice(i, 1); continue;
                     }
                     if (!gameOver && phase === 'DEFEND' && m.dist*scale <= 15) {
                         health--; updateUI(); explode(cx, cy, '244,63,94'); monsters.splice(i, 1); continue;
