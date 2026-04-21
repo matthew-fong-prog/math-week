@@ -840,12 +840,14 @@
                 if (phase === 'DEFEND' && ++waveTimer > Math.max(20, 100 - waveIdx*15)) {
                     waveTimer = 0;
                     let r = activePool[Math.floor(Math.random()*activePool.length)];
+                    let dPts = getDisplayPts(r);
+                    let pt = dPts[Math.floor(Math.random()*dPts.length)];
                     let MathHypotSpace = Math.max(canvas.width, canvas.height);
                     let spawnDist = (MathHypotSpace / 2) / scale + 2;
                     
                     monsters.push({
                         rSq: r, 
-                        a: Math.random()*6.28, 
+                        a: Math.atan2(pt.y, pt.x), 
                         dist: spawnDist, 
                         speed: 0.04 + waveIdx*0.005, 
                         w: Math.random()*6.28, 
@@ -854,6 +856,9 @@
                 }
 
                 if (phase === 'DEFEND') {
+                    let currentlyTargeted = new Set();
+                    bullets.forEach(b => currentlyTargeted.add(b.target));
+
                     completedCircles.forEach((c, rSq) => {
                         if (c.active) {
                             c.shootTimer = (c.shootTimer || 0) + dt;
@@ -861,15 +866,21 @@
                                 c.shootTimer = 0;
                                 c.pts.forEach(p => {
                                     let px = cx + p.x*scale, py = cy - p.y*scale;
+                                    let pAngle = Math.atan2(p.y, p.x);
                                     let closest = null, minDist = Infinity;
+                                    
                                     monsters.forEach(m => {
-                                        if (m.rSq === rSq) {
+                                        let diff = Math.abs(m.a - pAngle);
+                                        if (diff > Math.PI) diff = 2*Math.PI - diff;
+                                        if (m.rSq === rSq && diff < 0.1 && !currentlyTargeted.has(m)) {
                                             let mx = cx + Math.cos(m.a)*m.dist*scale, my = cy - Math.sin(m.a)*m.dist*scale;
                                             let d = Math.hypot(mx - px, my - py);
                                             if (d < minDist) { minDist = d; closest = m; }
                                         }
                                     });
+                                    
                                     if (closest) {
+                                        currentlyTargeted.add(closest);
                                         bullets.push({x: px, y: py, target: closest, type: c.type, speed: 12});
                                     }
                                 });
